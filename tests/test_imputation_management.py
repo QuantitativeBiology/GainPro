@@ -44,7 +44,7 @@ class TestImputationManagement(unittest.TestCase):
         imputation_management.add_method("model_1", "model_1_function")
         self.assertEqual(imputation_management.dict_imputation_methods["model_1"], "model_1_function")
 
-    def test_add_exhisting_model(self):
+    def test_add_duplicate_model(self):
         """test to try adding model already known"""
         df_missing = pd.read_csv("breastMissing_20.csv")
         imputation_management = ImputationManagement("test_model", df_missing, "breastMissing_20.csv")

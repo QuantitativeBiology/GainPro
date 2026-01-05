@@ -58,7 +58,7 @@ Methods
     3. Saves the model locally.
     4. Calls the model to perform imputation on the dataset located at dataset_path.
 
-- medium_imputation(dataset):
+- median_imputation(dataset):
 
     Performs median imputation on the dataset.
 

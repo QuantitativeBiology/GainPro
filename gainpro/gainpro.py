@@ -738,7 +738,6 @@ def gain(
             logger.info("Training with reference dataset...")
             df_ref = pd.read_csv(ref_file)
             ref = df_ref.values
-            ref_header = df_ref.columns.tolist()
 
             if dim != ref.shape[1]:
                 raise click.ClickException(
