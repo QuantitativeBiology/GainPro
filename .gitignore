@@ -266,7 +266,3 @@ logs/
 *.key
 secrets.json
 credentials.json
-
-
-#Ignore cursor AI rules
-.cursor/rules/codacy.mdc
