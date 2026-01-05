@@ -637,18 +637,12 @@ def gain(
         if parameters_file is not None:
             params = Params.read_hyperparameters(parameters_file)
             missing_file = params.input
-            output_file = params.output
             ref_file = params.ref
             output_folder = params.output_folder
-            num_iterations = params.num_iterations
-            batch_size = params.batch_size
-            alpha = params.alpha
+            # Extract only variables that are used directly (not through params)
             miss_rate = params.miss_rate
             hint_rate = params.hint_rate
-            lr_D = params.lr_D
-            lr_G = params.lr_G
             override = params.override
-            output_all = params.output_all
         else:
             params = Params(
                 missing_file,
@@ -666,6 +660,19 @@ def gain(
                 override,
                 output_all,
             )
+        
+        # Log training parameters
+        logger.info(f"Training parameters:")
+        logger.info(f"  - Input file: {missing_file}")
+        logger.info(f"  - Output file: {params.output}")
+        logger.info(f"  - Iterations: {params.num_iterations}")
+        logger.info(f"  - Batch size: {params.batch_size}")
+        logger.info(f"  - Alpha: {params.alpha}")
+        logger.info(f"  - Missing rate: {params.miss_rate}")
+        logger.info(f"  - Hint rate: {params.hint_rate}")
+        logger.info(f"  - Learning rate (D): {params.lr_D}")
+        logger.info(f"  - Learning rate (G): {params.lr_G}")
+        logger.info(f"  - Output folder: {output_folder}")
 
         # Create output folder
         if not os.path.exists(output_folder):

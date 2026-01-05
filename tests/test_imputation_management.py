@@ -2,14 +2,9 @@ import unittest
 import numpy as np
 import torch
 import random
-import os
-import sys 
 import pandas as pd
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "gainpro")))
 
 from gainpro.imputation_management import ImputationManagement 
-import gainpro.utils 
 
 class TestImputationManagement(unittest.TestCase):
     
