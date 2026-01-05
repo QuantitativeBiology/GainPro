@@ -1,6 +1,6 @@
-# Generative Proteomics Tests
+# GainPro Tests
 
-In this directory, you can find the tests for the GenerativeProteomics model.
+In this directory, you can find the tests for the GainPro model.
 
 ## Tests 
 
@@ -9,7 +9,7 @@ In this directory, you can find the tests for the GenerativeProteomics model.
 - `test_hyper`: tests if the model is correctly reading and updating the parameters used for imputation
 - `test_hint_generation`: test to infer the process of generating the hint matrix
 - `test_generate_reference`: test to infer the production of a synthetic reference dataset
-- `test_imputation_management`: test to infer if the Imputation_Management class is properly working
+- `test_imputation_management`: test to infer if the ImputationManagement class is properly working
 
 ## Test Goals
 

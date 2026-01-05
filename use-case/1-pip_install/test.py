@@ -1,11 +1,11 @@
-from GenerativeProteomics import utils, Network, Params, Metrics, Data
+from gainpro import utils, Network, Params, Metrics, Data
 import torch
 import argparse
 import os
 
 
 def test_network():
-    """ Test to showcase how to import and use the classes and functions of the GenerativeProteomics package. """
+    """ Test to showcase how to import and use the classes and functions of the gainpro package. """
     
     parser = argparse.ArgumentParser()
     parser.add_argument("--model", type = str, help = "indicates the model to use")

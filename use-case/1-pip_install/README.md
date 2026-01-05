@@ -1,20 +1,20 @@
-# GenerativeProteomics
+# gainpro
 
 
-In this first part, we will show in a simple and clear way how to install and use `GenerativeProteomics` 
+In this first part, we will show in a simple and clear way how to install and use `gainpro` 
 to perform imputation of missing values of proteomics' datasets.
 
 ## Installation
 
 
-`GenerativeProteomics` is a Python package for imputation of missing values in the field of proteomics. 
+`gainpro` is a Python package for imputation of missing values in the field of proteomics. 
 It is currently based on the `Generative Adversarial Imputation Network (GAIN)` architecture.
 To use the package, you need to have `Python 3.10` or `Python 3.11` on your system.
 To do that, you can create a conda environment, for example.
-The package is available on `PyPI` and can be installed using a `pip` command (GenerativeProteomics 0.2.1).
+The package is available on `PyPI` and can be installed using a `pip` command (gainpro 0.2.0).
 
 ```bash  
-    pip install GenerativeProteomics 
+    pip install gainpro 
 ```
 
   
@@ -105,7 +105,7 @@ role in the imputation process :
 
 ## Example
 
-In this use-case, you can find a file that showcases how to import and use the functions and classes of GenerativeProteomics.
+In this use-case, you can find a file that showcases how to import and use the functions and classes of gainpro.
 This file is called `test.py` and it performs the imputation of missing values on a dataset of proteins from PRIDE.
 The dataset in question is called `PXD004452.tsv` and it is also accessible in this directory. 
 This dataset has a missing rate of 17.442532054984405%, 8657 samples and 4 features.

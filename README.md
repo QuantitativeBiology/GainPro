@@ -1,63 +1,194 @@
-# Generative Proteomics
+# GainPro
 
-[![PyPi Version](https://img.shields.io/pypi/v/GenerativeProteomics?label=PyPi&color=blue&style=flat&logo=pypi)](https://pypi.org/project/GenerativeProteomics/)
+[![PyPi Version](https://img.shields.io/pypi/v/gainpro?label=PyPi&color=blue&style=flat&logo=pypi)](https://pypi.org/project/gainpro/)
 [![Colab](https://img.shields.io/badge/Google_Colab-0061F2?style=flat&logo=googlecolab&color=blue&label=Colab&colorB=grey)](https://colab.research.google.com/drive/1ihtmsv_UvEz74YrLHZvATu1y2qH4X9-r?usp=sharing)
 [![Documentation](https://img.shields.io/badge/docs-read%20the%20docs-blue)](https://generativeproteomics.readthedocs.io/en/latest/)
 [![HuggingFace](https://img.shields.io/badge/Hugging_Face-grey?style=flat&logo=huggingface&color=grey)](https://huggingface.co/QuantitativeBiology)
 
-In this repository you may find a PyTorch implementation of Generative Adversarial Imputation Networks (GAIN) [[1]](#1) for imputing missing iBAQ values in proteomics datasets.
+**GainPro** is a PyTorch implementation of Generative Adversarial Imputation Networks (GAIN) [[1]](#1) for imputing missing iBAQ values in proteomics datasets. The package provides a unified command-line interface with multiple imputation methods including basic GAIN, GAIN-DANN (domain-adaptive), and pre-trained GAIN-DANN models from HuggingFace.
 
 ## Table of Contents
 
-- [Repository Strucure](#repository-structure)
+- [Features](#features)
 - [Installation](#installation)
-- [Basic Usage](#basic-usage)
-- [GitHub](#github)
-- [Demo](#demo)
-- [References](#reference)
+- [Quick Start](#quick-start)
+- [Command-Line Usage](#command-line-usage)
+- [Python API](#python-api)
+- [Repository Structure](#repository-structure)
+- [DANN & GAIN Hybrid](#dann--gain-hybrid)
+- [References](#references)
 
-## Repository Structure
+## Features
 
-Here are the main components you'll find in this repository:
-
-1. .github/workflows 
-    - contains the code for the automatization of the tests in the repository
-2. Datasets
-    - directory with datasets with missing values from PRIDE that can be used for testing 
-3. GenerativeProteomics: 
-    - Contains the core package source code 
-4. docs/source
-    - contains the information used for the documentation of our work (ReadtheDocs)
-5. tests:
-    - batery of unittests to assess the model's functionality
-6. use-case
-    - set of clear examples on how to use our model's functionalities 
-    - includes examples on how to install the package and use it, how to run the tests, and how to download and use a pre-trained model from HuggingFace
+- **Basic GAIN**: Simple Generator + Discriminator architecture for general-purpose imputation
+- **GAIN-DANN**: Domain-adaptive imputation with Encoder/Decoder architecture
+- **Pre-trained Models**: Easy access to HuggingFace pre-trained GAIN-DANN models
+- **Median Imputation**: Simple baseline method
+- **Flexible CLI**: Unified `gainpro` command with intuitive subcommands
+- **Python API**: Full programmatic access to all functionality
 
 
 ## Installation
 
-### Pip install
+### From PyPI (Recommended)
 
-We have submitted a package to the Python Package Index (PyPI) for easy installation. You can install the package using the following command:
+The package is available on PyPI. Install it using:
 
 ```bash
-pip install GenerativeProteomics
+pip install gainpro
 ```
 
-This way, you can install the package and its dependencies in one go.
+### From Source
 
-#### Python API 
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/QuantitativeBiology/GainPro.git
+   cd GainPro
+   ```
+
+2. Create a Python environment (recommended):
+   ```bash
+   conda create -n gainpro python=3.10
+   conda activate gainpro
+   ```
+
+3. Install dependencies:
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+4. Install the package in development mode:
+   ```bash
+   pip install -e .
+   ```
+
+## Quick Start
+
+After installation, you can use the `gainpro` command-line interface:
+
+```bash
+# Basic GAIN imputation
+gainpro gain -i data.csv
+
+# With reference dataset for evaluation
+gainpro gain -i data.csv --ref reference.csv
+
+# Using a configuration file
+gainpro gain --parameters configs/params_gain.json
+```
+
+## Command-Line Usage
+
+GainPro provides a unified CLI with the following subcommands:
+
+
+### `gainpro gain` - Basic GAIN Imputation
+
+The basic GAIN command performs imputation using a Generator + Discriminator architecture.
+
+**Basic usage:**
+```bash
+gainpro gain -i data.csv
+```
+
+**With options:**
+```bash
+gainpro gain -i data.csv -o imputed.csv --ofolder ./results/ --it 3000
+```
+
+**Using a configuration file:**
+```bash
+gainpro gain --parameters configs/params_gain.json
+```
+
+**With reference dataset for evaluation:**
+```bash
+gainpro gain -i data.csv --ref reference.csv
+```
+
+**Note:** When run without a reference, the command performs two phases:
+1. **Evaluation run**: Conceals a percentage of values (10% by default) during training, calculates RMSE, and creates `test_imputed.csv` for accuracy estimation
+2. **Imputation run**: Trains on the entire dataset and creates `imputed.csv`
+
+**Common options:**
+- `-i, --input`: Path to input file (CSV, TSV, or Parquet)
+- `-o, --output`: Name of output file (default: `imputed`)
+- `--ref`: Path to reference (complete) dataset for evaluation
+- `--ofolder`: Output folder path (default: `./results`)
+- `--it`: Number of training iterations (default: 2001)
+- `--batchsize`: Batch size (default: 128)
+- `--miss`: Missing rate for evaluation (0-1, default: 0.1)
+- `--hint`: Hint rate (0-1, default: 0.9)
+- `--lrd`: Learning rate for discriminator (default: 0.001)
+- `--lrg`: Learning rate for generator (default: 0.001)
+- `--parameters`: Path to JSON configuration file
+- `--override`: Override previous output files (1) or append (0, default)
+- `--outall`: Output all metrics (1) or minimal output (0, default)
+
+### `gainpro train` - Train GAIN-DANN Model
+
+Train a domain-adaptive GAIN-DANN model:
+
+```bash
+gainpro train --config configs/params_gain_dann.json --save
+```
+
+### `gainpro impute` - Impute with Trained Model
+
+Use a trained GAIN-DANN checkpoint for imputation:
+
+```bash
+gainpro impute --checkpoint checkpoints/your_model --input data.csv --output imputed.csv
+```
+
+### `gainpro download` - HuggingFace Pre-trained GAIN-DANN Models
+
+Download and use pre-trained GAIN-DANN models from HuggingFace:
+
+```bash
+gainpro download --input data.csv --output imputed.csv
+```
+
+**Note:** This command is specifically designed for GAIN-DANN models. It requires the HuggingFace repository to contain:
+- `config.json` - Model configuration
+- `pytorch_model.bin` - Model weights  
+- `modeling_gain_dann.py` - Model architecture file with `GainDANN` class
+
+The model must follow the GAIN-DANN interface (returning `(x_reconstructed, x_domain)` from forward pass). Other model types are not currently supported.
+
+### `gainpro median` - Median Imputation
+
+Simple median imputation baseline:
+
+```bash
+gainpro median --input data.csv --output imputed.csv
+```
+
+### Getting Help
+
+For detailed help on any command:
+```bash
+gainpro --help
+gainpro gain --help
+gainpro train --help
+```
+
+**Legacy command:** The `gain` command is still available but deprecated. Use `gainpro gain` instead.
+
+
+## Python API
+
+GainPro can also be used programmatically through its Python API:
 
 ```python
-from GenerativeProteomics import utils, Network, Params, Metrics, Data
+from gainpro import utils, Network, Params, Metrics, Data
 import torch
 import pandas as pd
 
 # Load your dataset
 dataset_path = "your_dataset.tsv"
-dataset_df = utils.build_protein_matrix(dataset_path) # use this function if dataset is a tsv
-#dataset_df = pd.read_csv(dataset_path)  # if your dataset is a csv
+dataset_df = utils.build_protein_matrix(dataset_path)  # For TSV files
+# dataset_df = pd.read_csv(dataset_path)  # For CSV files
 dataset = dataset_df.values
 missing_header = dataset_df.columns.tolist()
 
@@ -83,10 +214,18 @@ input_dim = dataset.shape[1]
 h_dim = input_dim
 net_G = torch.nn.Sequential(
     torch.nn.Linear(input_dim * 2, h_dim),
+    torch.nn.ReLU(),
+    torch.nn.Linear(h_dim, h_dim),
+    torch.nn.ReLU(),
+    torch.nn.Linear(h_dim, input_dim),
     torch.nn.Sigmoid()
 )
 net_D = torch.nn.Sequential(
     torch.nn.Linear(input_dim * 2, h_dim),
+    torch.nn.ReLU(),
+    torch.nn.Linear(h_dim, h_dim),
+    torch.nn.ReLU(),
+    torch.nn.Linear(h_dim, input_dim),
     torch.nn.Sigmoid()
 )
 
@@ -98,70 +237,71 @@ data = Data(dataset=dataset, miss_rate=0.2, hint_rate=0.9, ref=None)
 # Run evaluation and training
 network.evaluate(data=data, missing_header=missing_header)
 network.train(data=data, missing_header=missing_header)
-print("Final Matrix:\n", metrics.data_imputed) 
+print("Final Matrix:\n", metrics.data_imputed)
 ```
-For a more detailed explanation on how to use the model and all the functionalities we have to offer, you can open the `use-case` directory.
 
-### GitHub
+For more examples, see the `use-case` directory.
 
-If you prefer to use the code of the GenerativeProteomics model directly, you can access it in our GitHub repository and follow the next sequence of commands.
+## Repository Structure
 
-1. Clone this repository:  `git clone https://github.com/QuantitativeBiology/GenerativeProteomics/`
-2. Create a Python environment: `conda create -n proto python=3.10` if you have conda installed
-3. Activate the previously created environment: `conda activate proto`
-4. Install the necessary packages: `pip install -r libraries.txt`
+Main components of the repository:
 
+- **`.github/workflows`**: CI/CD workflows for automated testing
+- **`datasets/`**: Sample datasets with missing values from PRIDE for testing
+- **`gainpro/`**: Core package source code
+  - `gainpro.py`: Main CLI interface (unified command with subcommands)
+  - `model.py`: Basic GAIN model implementation
+  - `gain_dann_model.py`: GAIN-DANN model implementation
+  - Other core modules (dataset, hypers, output, etc.)
+- **`configs/`**: Configuration files for different models
+- **`docs/source/`**: Documentation source files for ReadTheDocs
+- **`tests/`**: Unit tests to assess model functionality
+- **`use-case/`**: Examples demonstrating package usage
+  - Installation examples
+  - Test execution examples
+  - HuggingFace model usage examples
 
-#### How to Use GenerativeProteomics
+## Demo
 
-If you just want to impute a general dataset, the most straightforward and simplest way to run GenerativeProteomics is to run: `python generativeproteomics.py -i /path/to/file_to_impute.csv`
-Running in this manner will result in two separate training phases.
+The repository includes a breast cancer diagnostic dataset [[2]](#2) in `datasets/breast/`:
 
-1) Evaluation run: In this run a percentage of the values (10% by default) are concealed during the training phase and then the dataset is imputed. The RMSE is calculated with those hidden values as targets and at the end of the training phase a `test_imputed.csv` file will be created containing the original hidden values and the resulting imputation, this way you can have an estimation of the imputation accuracy.
+- `breast.csv`: Complete dataset
+- `breastMissing_20.csv`: Same dataset with 20% missing values
+- `parameters.json`: Example configuration file
 
-2) Imputation run: Then a proper training phase takes place using the entire dataset. An `imputed.csv` file will be created containing the imputed dataset.
+**Quick demo commands:**
 
-However, there are a few arguments which you may want to change. You can do this using a parameters.json file (you may find an example in `GenerativeProteomics/breast/parameters.json`) or you can choose them directly in the command line.
+```bash
+# Simple imputation
+gainpro gain -i ./datasets/breast/breastMissing_20.csv
 
-Run with a parameters.json file: `python generativeproteomics.py --parameters /path/to/parameters.json`<br>
-Run with command line arguments: `python generativeproteomics.py -i /path/to/file_to_impute.csv -o imputed_name --ofolder ./results/ --it 2001`
+# With reference for evaluation
+gainpro gain -i ./datasets/breast/breastMissing_20.csv --ref ./datasets/breast/breast.csv
 
-#### How to import and use a pre-trained model 
+# Using configuration file
+gainpro gain --parameters ./datasets/breast/parameters.json
+```
 
-Instead of running our trained model GenerativeProteomics, you can always use other inference forms. To do so, all you need to do is use the --model flag.
-
-Run the following command in order to use an alternative imputation form: `python generativeproteomics.py -i /path/to/file_to_impute.csv --model <name_of_model>`
-
-#### Arguments:
-
-`-i`: Path to file to impute<br> 
-`-o`: Name of imputed file<br> 
-`--ofolder`: Path to the output folder<br> 
-`--it`: Number of iterations to train the model<br> 
-`--miss`: The percentage of values to be concealed during the evaluation run (from `0` to `1`)<br>
-`--outall`: Set this argument to `1` if you want to output every metric<br> 
-`--override`: Set this argument to `1` if you want to delete the previously created files when writing the new output<br> 
-`--model`: Contains the name of the imputation form to run. Default value is the GenerativeProteomics model.
-
-
-If you want to test the efficacy of the code you may give a reference file containing a complete version of the dataset (without missing values): `python generativeproteomics.py -i /path/to/file_to_impute.csv --ref /path/to/complete_dataset.csv`
-
-Running this way will calculate the RMSE of the imputation in relation to the complete dataset.
-
-
-#### Demo
-
-In this repository you may find a folder named `breast`, inside it you have a breast cancer diagnostic dataset [[2]](#2) which you may use to try out the code.
-
-`breast.csv`: complete dataset<br>
-`breastMissing_20.csv`: the same dataset but with 20% of its values taken out
+For detailed metric analysis, either:
+- Set `--outall 1` to output all metrics
+- Use the Python API in an IPython console to access the `metrics` object (e.g., `metrics.loss_D`, `metrics.loss_G`, `metrics.rmse_train`)
 
 
-To simply impute `breastMissing_20.csv` run: `python generativeproteomics.py -i ./breast/breastMissing_20.csv` <br>
-If you want to compare the imputation with the original dataset run: `python generativeproteomics.py -i ./breast/breastMissing_20.csv --ref ./breast/breast.csv` or `python generativeproteomics.py --parameters ./breast/parameters.json`
+## DANN & GAIN Hybrid
 
+The repository includes a hybrid model combining Domain Adversarial Neural Networks (DANN) with GAIN for domain-adaptive imputation. This is particularly useful when you have multiple datasets from different domains and want to learn domain-invariant representations.
 
-If you want to go deep in the analysis of every metric you either set `--outall` to `1` or you run the code in an IPython console, this way you can access every variable you want in the `metrics` object, e.g. `metrics.loss_D`.
+**Training a GAIN-DANN model:**
+```bash
+gainpro train --config configs/params_gain_dann.json --save
+```
+
+**Using a trained model:**
+```bash
+gainpro impute --checkpoint checkpoints/your_model --input data.csv --output imputed.csv
+```
+
+For detailed information about the GAIN-DANN architecture and training procedure, see the documentation.
 
 
 ## References

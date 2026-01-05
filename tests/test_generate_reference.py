@@ -2,13 +2,10 @@ import sys
 import os
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "GenerativeProteomics")))
-
-
-from GenerativeProteomics.dataset import Data
+from gainpro.dataset import Data
 import numpy as np
 import unittest
-from GenerativeProteomics.utils import create_csv
+from gainpro.utils import create_csv
 import torch
 import pandas as pd
 import random

@@ -2,12 +2,12 @@ import sys
 import os
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "ProtoGain")))
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "gainpro")))
 
-from GenerativeProteomics.dataset import Data
-from GenerativeProteomics.model import Network
-from GenerativeProteomics.hypers import Params
-from GenerativeProteomics.output import Metrics
+from gainpro.dataset import Data
+from gainpro.model import Network
+from gainpro.hypers import Params
+from gainpro.output import Metrics
 import numpy as np
 import unittest
 import torch

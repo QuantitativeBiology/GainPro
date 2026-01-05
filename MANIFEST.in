@@ -1,0 +1,17 @@
+# Include documentation
+include README.md
+include LICENSE
+
+# Include configs
+recursive-include configs *.json
+
+# Include datasets
+recursive-include datasets *.csv *.tsv *.json
+
+# Exclude tests and development files
+recursive-exclude tests *
+recursive-exclude use-case *
+recursive-exclude docs *
+recursive-exclude .github *
+exclude .gitignore
+exclude .readthedocs.yaml

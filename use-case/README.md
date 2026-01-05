@@ -1,6 +1,6 @@
 # Generative Proteomics 
 
-GenerativeProteomics is a Python package for missing value imputation in proteomics datasets. 
+gainpro is a Python package for missing value imputation in proteomics datasets. 
 
 It leverages generative models to accurately estimate missing values, improving downstream analysis and data quality.
 
@@ -27,7 +27,7 @@ https://colab.research.google.com/drive/1ihtmsv_UvEz74YrLHZvATu1y2qH4X9-r?usp=sh
 
 If you want to take a closer look at the code, you can visit our GitHub repository:
 
-https://github.com/QuantitativeBiology/GenerativeProteomics
+https://github.com/QuantitativeBiology/gainpro
 
 If you want to learn more about our work, you can read its documentation in the following link:
 

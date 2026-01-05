@@ -9,7 +9,7 @@ You can install the package using the following command:
 
 .. code-block:: bash
 
-    pip install GenerativeProteomics
+    pip install gainpro
 
 This way, you can install the package and its dependencies in one go.
 
@@ -18,15 +18,15 @@ After that, you can import all the functions and classes from the package of the
 GitHub
 -------------------
 
-If you prefer to use the code of the GenerativeProteomics model directly, you can access it in our GitHub repository.
+If you prefer to use the code of the gainpro model directly, you can access it in our GitHub repository.
 
-https://github.com/QuantitativeBiology/GenerativeProteomics
+https://github.com/QuantitativeBiology/gainpro
 
 In order to clone the repository, you should use the following command:
 
 .. code-block:: bash
 
-    git clone https://github.com/QuantitativeBiology/ProtoGain/
+    git clone https://github.com/QuantitativeBiology/GainPro/
 
 After cloning the repository, you should create a Python environment (versions 3.10 and 3.11).
 If you have Conda installed, you can use the following command:

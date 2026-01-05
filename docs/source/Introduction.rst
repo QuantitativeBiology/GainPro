@@ -3,9 +3,9 @@ Introduction
 
 
 
-What is GenerativeProteomics?
+What is gainpro?
 ------------------------------
-GenerativeProteomics is a framework designed for missing data imputation and augmentation in the field of proteomics, by 
+gainpro is a framework designed for missing data imputation and augmentation in the field of proteomics, by 
 using advanced generative models, like GAIN.
 
 
@@ -20,7 +20,7 @@ Advanced models have also been developed, but they each have limitations and can
 
 
 All of these factors highlight the need to develop models and methods that can address this problem in an efficient and accurate way.
-It was with the goal of addressing the recurrent and complex problem of missing data in proteomics that GenerativeProteomics was created. 
+It was with the goal of addressing the recurrent and complex problem of missing data in proteomics that gainpro was created. 
 
 
 

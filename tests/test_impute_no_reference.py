@@ -1,18 +1,15 @@
-import sys 
-import os
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "GenerativeProteomics")))
-
-from GenerativeProteomics.dataset import Data
-from GenerativeProteomics.model import Network
-from GenerativeProteomics.hypers import Params
-from GenerativeProteomics.output import Metrics
-import numpy as np
 import unittest
-import torch
-import pandas as pd
+import os
 import random
+import numpy as np
+import pandas as pd
+import torch
+
+from gainpro.dataset import Data
+from gainpro.model import Network
+from gainpro.hypers import Params
+from gainpro.output import Metrics
+
 class TestImputation(unittest.TestCase):
     def setUp(self):
         """Set up reusable test data and parameters."""
@@ -103,8 +100,7 @@ class TestImputation(unittest.TestCase):
         except Exception as e:
             self.fail(f"Imputation failed with exception: {e}")
 
-    
-        "test the metrics class produced during imputation"
+        # Test the metrics class produced during imputation
         self.assertEqual(metrics.loss_D.size, self.params.num_iterations)
         self.assertEqual(metrics.loss_G.size, self.params.num_iterations)
         self.assertEqual(metrics.ram.size, self.params.num_iterations)

@@ -1,29 +1,59 @@
-name: Run tests on GenerativeProteomics and tests
+name: CI - Run Tests
 
 on:
   push:
+    branches: [main, master, develop]
     paths:
-      - 'GenerativeProteomics/**'
+      - 'gainpro/**'
       - 'tests/**'
+      - 'requirements.txt'
+      - 'pyproject.toml'
+  pull_request:
+    branches: [main, master, develop]
+    paths:
+      - 'gainpro/**'
+      - 'tests/**'
+      - 'requirements.txt'
+      - 'pyproject.toml'
 
 jobs:
-  run-tests:
+  test:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ['3.10', '3.11']
 
     steps:
-      - name: Checkout repo
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Python
+      - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: ${{ matrix.python-version }}
+
+      - name: Cache pip dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
 
       - name: Install dependencies
         run: |
+          python -m pip install --upgrade pip
           pip install -r requirements.txt
+          # Ensure numpy < 2 for PyTorch compatibility
+          pip install "numpy<2"
+          # Install package in editable mode for import tests
+          pip install -e .
 
       - name: Run tests
         run: |
-          python -m unittest discover 
-        working-directory: ./tests 
+          python -m unittest discover -v
+        working-directory: ./tests
+
+      - name: Test package import
+        run: |
+          python -c "from gainpro import Data, Params, Network, Metrics; print('Package imports successful!')"

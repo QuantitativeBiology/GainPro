@@ -1,0 +1,15 @@
+{
+    "input": "./datasets/breast/breastMissing_20.csv",
+    "output": "imputed",
+    "ref": "./datasets/breast/breast.csv",
+    "output_folder": "./results/",
+    "num_iterations": 2001,
+    "batch_size": 128, 
+    "alpha": 10, 
+    "miss_rate": 0.1, 
+    "hint_rate": 0.9, 
+    "lr_D": 0.001, 
+    "lr_G": 0.001,
+    "override": 1,
+    "output_all": 0
+}

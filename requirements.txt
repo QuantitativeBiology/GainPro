@@ -1,17 +1,26 @@
-torch
+# Core dependencies for GainPro
+# For development installation, use: pip install -e ".[dev]"
+
+torch>=2.0.0
 torchinfo
-numpy
+numpy<2
 tqdm
 pandas
 scikit-learn
 optuna
-argparse
 psutil
 anndata
 polars
 huggingface_hub
 transformers
+click>=8.0
+
+# Interactive CLI (optional, for checkpoint selection)
+inquirer
+
+# Visualization (optional)
 holoviews
 datashader
 umap-learn
 seaborn
+matplotlib
