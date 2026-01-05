@@ -11,7 +11,7 @@ to perform imputation of missing values of proteomics' datasets.
 It is currently based on the `Generative Adversarial Imputation Network (GAIN)` architecture.
 To use the package, you need to have `Python 3.10` or `Python 3.11` on your system.
 To do that, you can create a conda environment, for example.
-The package is available on `PyPI` and can be installed using a `pip` command (gainpro 0.2.1).
+The package is available on `PyPI` and can be installed using a `pip` command (gainpro 0.2.0).
 
 ```bash  
     pip install gainpro 

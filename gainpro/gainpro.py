@@ -171,18 +171,18 @@ def train(config_file, save):
     params_gain_dann = ParamsGainDann.read_hyperparameters(config_file)
     params = params_gain_dann.to_dict()
     
-    # Read dataset
+    # Read dataset - use DataDANN for GAIN-DANN models
     if params_gain_dann.path_dataset_missing:
         logger.info(f"Loading dataset with missing values: {params_gain_dann.path_dataset_missing}")
         dataset_missing = pd.read_csv(params_gain_dann.path_dataset_missing, index_col=0)
         dataset_missing = dataset_missing.iloc[:, 8500:]  # TODO: Remove start_col hardcoding
-        data = Data(
+        data = DataDANN(
             dataset_path=params_gain_dann.path_dataset,
             dataset_missing=dataset_missing,
             start_col=8500
         )
     else:
-        data = Data(
+        data = DataDANN(
             dataset_path=params_gain_dann.path_dataset,
             miss_rate=params["miss_rate"],
             start_col=8500
@@ -252,8 +252,8 @@ def impute(checkpoint_dir, input_file, output_file, miss_rate):
     df = df.loc[:, list(common_proteins)]
     logger.info(f"Using {len(common_proteins)} common proteins")
     
-    # Create data object
-    data = Data(df, miss_rate=miss_rate, start_col=0)
+    # Create data object - use DataDANN for GAIN-DANN models
+    data = DataDANN(dataset=df, miss_rate=miss_rate, start_col=0)
     incomplete_data = data.dataset_missing
     
     # Pad with NaNs for model compatibility
