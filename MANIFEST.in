@@ -8,9 +8,6 @@ recursive-include configs *.json
 # Include datasets
 recursive-include datasets *.csv *.tsv *.json
 
-# Include configs
-recursive-include configs *.json
-
 # Exclude tests and development files
 recursive-exclude tests *
 recursive-exclude use-case *
