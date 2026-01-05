@@ -5,7 +5,7 @@
 [![Documentation](https://img.shields.io/badge/docs-read%20the%20docs-blue)](https://generativeproteomics.readthedocs.io/en/latest/)
 [![HuggingFace](https://img.shields.io/badge/Hugging_Face-grey?style=flat&logo=huggingface&color=grey)](https://huggingface.co/QuantitativeBiology)
 
-**GainPro** is a PyTorch implementation of Generative Adversarial Imputation Networks (GAIN) [[1]](#1) for imputing missing iBAQ values in proteomics datasets. The package provides a unified command-line interface with multiple imputation methods including basic GAIN, GAIN-DANN (domain-adaptive), and pre-trained HuggingFace models.
+**GainPro** is a PyTorch implementation of Generative Adversarial Imputation Networks (GAIN) [[1]](#1) for imputing missing iBAQ values in proteomics datasets. The package provides a unified command-line interface with multiple imputation methods including basic GAIN, GAIN-DANN (domain-adaptive), and pre-trained GAIN-DANN models from HuggingFace.
 
 ## Table of Contents
 
@@ -22,7 +22,7 @@
 
 - **Basic GAIN**: Simple Generator + Discriminator architecture for general-purpose imputation
 - **GAIN-DANN**: Domain-adaptive imputation with Encoder/Decoder architecture
-- **Pre-trained Models**: Easy access to HuggingFace pre-trained models
+- **Pre-trained Models**: Easy access to HuggingFace pre-trained GAIN-DANN models
 - **Median Imputation**: Simple baseline method
 - **Flexible CLI**: Unified `gainpro` command with intuitive subcommands
 - **Python API**: Full programmatic access to all functionality
@@ -141,13 +141,20 @@ Use a trained GAIN-DANN checkpoint for imputation:
 gainpro impute --checkpoint checkpoints/your_model --input data.csv --output imputed.csv
 ```
 
-### `gainpro download` - HuggingFace Pre-trained Models
+### `gainpro download` - HuggingFace Pre-trained GAIN-DANN Models
 
-Download and use pre-trained models from HuggingFace:
+Download and use pre-trained GAIN-DANN models from HuggingFace:
 
 ```bash
 gainpro download --input data.csv --output imputed.csv
 ```
+
+**Note:** This command is specifically designed for GAIN-DANN models. It requires the HuggingFace repository to contain:
+- `config.json` - Model configuration
+- `pytorch_model.bin` - Model weights  
+- `modeling_gain_dann.py` - Model architecture file with `GainDANN` class
+
+The model must follow the GAIN-DANN interface (returning `(x_reconstructed, x_domain)` from forward pass). Other model types are not currently supported.
 
 ### `gainpro median` - Median Imputation
 

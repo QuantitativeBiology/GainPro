@@ -303,47 +303,73 @@ def impute(checkpoint_dir, input_file, output_file, miss_rate):
 @click.option(
     "--model-id",
     default="QuantitativeBiology/GAIN_DANN_model",
-    help="HuggingFace model repository ID",
+    help="HuggingFace model repository ID (must be a GAIN-DANN model with modeling_gain_dann.py file)",
     show_default=True,
 )
 def download(input_file, output_file, model_id):
     """
-    Download a pre-trained model from HuggingFace and perform imputation.
+    Download a pre-trained GAIN-DANN model from HuggingFace and perform imputation.
+    
+    NOTE: This command is specifically designed for GAIN-DANN models. It expects:
+    - A config.json file with model configuration
+    - A pytorch_model.bin file with model weights
+    - A modeling_gain_dann.py file with the model architecture class
+    
+    The model must implement the GainDANN interface with forward() returning 
+    (x_reconstructed, x_domain) tuples. Other model types are not supported.
     
     Example:
     
         gainpro download --input data.csv --output imputed.csv
     """
-    logger.info(f"Downloading model from HuggingFace: {model_id}")
+    logger.info(f"Downloading GAIN-DANN model from HuggingFace: {model_id}")
+    logger.warning(
+        "NOTE: This command only works with GAIN-DANN models that include "
+        "modeling_gain_dann.py. Other model types are not supported."
+    )
     
     save_dir = "./GAIN_DANN_model"
     os.makedirs(save_dir, exist_ok=True)
     
     # Download files from HuggingFace
+    # NOTE: This is specific to GAIN-DANN model structure
     logger.info("Downloading model files...")
-    config_path = hf_hub_download(
-        repo_id=model_id,
-        filename="config.json",
-        cache_dir=save_dir
-    )
-    weights_path = hf_hub_download(
-        repo_id=model_id,
-        filename="pytorch_model.bin",
-        cache_dir=save_dir
-    )
-    model_path = hf_hub_download(
-        repo_id=model_id,
-        filename="modeling_gain_dann.py",
-        cache_dir=save_dir
-    )
+    try:
+        config_path = hf_hub_download(
+            repo_id=model_id,
+            filename="config.json",
+            cache_dir=save_dir
+        )
+        weights_path = hf_hub_download(
+            repo_id=model_id,
+            filename="pytorch_model.bin",
+            cache_dir=save_dir
+        )
+        model_path = hf_hub_download(
+            repo_id=model_id,
+            filename="modeling_gain_dann.py",
+            cache_dir=save_dir
+        )
+    except Exception as e:
+        raise click.ClickException(
+            f"Failed to download GAIN-DANN model files from {model_id}. "
+            f"Ensure the repository contains config.json, pytorch_model.bin, "
+            f"and modeling_gain_dann.py files. Error: {e}"
+        )
     
     # Add directory to Python path to import the model
     directory = os.path.dirname(model_path)
     if directory not in sys.path:
         sys.path.append(directory)
     
-    # Import model classes
-    from modeling_gain_dann import GainDANNConfig, GainDANN
+    # Import model classes (GAIN-DANN specific)
+    try:
+        from modeling_gain_dann import GainDANNConfig, GainDANN
+    except ImportError as e:
+        raise click.ClickException(
+            f"Failed to import GAIN-DANN model classes from modeling_gain_dann.py. "
+            f"This command only works with GAIN-DANN models. Error: {e}"
+        )
     
     logger.info("Loading model configuration...")
     
@@ -383,10 +409,16 @@ def download(input_file, output_file, model_id):
     
     x = torch.tensor(data_df.values, dtype=torch.float32)
     
-    # Perform imputation
+    # Perform imputation (GAIN-DANN specific: returns reconstructed data and domain predictions)
     logger.info("Running imputation...")
     with torch.no_grad():
-        x_reconstructed, x_domain = model(x)
+        try:
+            x_reconstructed, x_domain = model(x)
+        except (ValueError, TypeError) as e:
+            raise click.ClickException(
+                f"Model output format not recognized. This command expects GAIN-DANN models "
+                f"that return (x_reconstructed, x_domain) tuples. Error: {e}"
+            )
     
     # Convert to DataFrame and save
     result_df = pd.DataFrame(x_reconstructed.numpy(), columns=data_df.columns if hasattr(data_df, 'columns') else None)
@@ -397,7 +429,7 @@ def download(input_file, output_file, model_id):
     
     result_df.to_csv(output_file, index=True)
     
-    # Optionally save domain predictions
+    # Save domain predictions (GAIN-DANN specific feature)
     domain_file = output_file.replace(".csv", "_domain.csv")
     pd.DataFrame(x_domain.numpy()).to_csv(domain_file, index=False)
     
