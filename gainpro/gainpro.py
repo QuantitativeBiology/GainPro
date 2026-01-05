@@ -822,8 +822,11 @@ def gain_main():
     
     # Show deprecation warning
     click.echo(
-        "⚠️  WARNING: The 'gain' command is deprecated. "
-        "Please use 'gainpro gain' instead.\n",
+        "⚠️  WARNING: The standalone 'gain' command is deprecated and will be "
+        "removed in version 0.3.0.\n"
+        "   Please migrate to 'gainpro gain' instead. The functionality is identical.\n"
+        "   For documentation and examples, see: "
+        "https://github.com/bigbio/GainPro/blob/main/README.md\n",
         err=True
     )
     
