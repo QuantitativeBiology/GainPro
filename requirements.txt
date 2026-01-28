@@ -15,4 +15,3 @@ holoviews
 datashader
 umap-learn
 seaborn
-rpy2
