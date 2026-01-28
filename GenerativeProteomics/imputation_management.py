@@ -4,6 +4,7 @@ from models.medium import MediumImputationModel
 from models.missforest import MissForestRImputationModel
 from models.mice import IterativeMICEImputationModel
 
+
 class Imputation_Management:
     def __init__ (self, model, df_missing, missing_file_path):
         self.model = model

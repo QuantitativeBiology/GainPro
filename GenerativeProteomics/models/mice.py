@@ -8,3 +8,4 @@ class IterativeMICEImputationModel:
         out = imp.fit_transform(df)
         print(out)
         return pd.DataFrame(out, index=df.index, columns=df.columns)
+    
