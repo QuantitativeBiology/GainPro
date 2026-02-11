@@ -1,6 +1,8 @@
 from models.base_abstract import ImputationModel
 from models.gain_dann import GainDannImputationModel
 from models.medium import MediumImputationModel
+from models.missforest import MissForestRImputationModel
+from models.mice import IterativeMICEImputationModel
 
 
 class Imputation_Management:
@@ -8,7 +10,7 @@ class Imputation_Management:
         self.model = model
         self.df = df_missing
         self.missing = missing_file_path
-        self.dict_imputation_methods = {"GAIN_DANN_model" : GainDannImputationModel(), "medium_imputation" : MediumImputationModel()}
+        self.dict_imputation_methods = {"GAIN_DANN_model" : GainDannImputationModel(), "medium_imputation" : MediumImputationModel(), "missforest": MissForestRImputationModel(), "mice": IterativeMICEImputationModel()}
 
 
     def add_method(self, model, fn): 
