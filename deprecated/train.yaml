@@ -1,0 +1,21 @@
+data:
+  raw_path: null
+  prepared_dir: "data/processed/small_toy_hela/miss_10" # Directory with the prepared dataset (reference.csv, missing.csv, mask.csv, domain.csv)
+
+train:
+  epochs: 2
+  early_stop_patience: 10
+  batch_size: 6
+  learning_rate: 3.16e-5
+  weight_decay: 0.03
+
+model:
+  hidden_layers: 2
+  dropout_rate: 0.0
+  alpha_weight: 1.0
+  beta_weight: 1.0
+  gamma_weight: 1.0
+
+gain:
+  miss_rate: 0.1
+  hint_rate: 0.9

@@ -1,0 +1,20 @@
+{   
+    "mode": "train",
+    "path_dataset": "../data/processed/HeLa/hela_benchmark_dann_gain.csv",
+    "path_dataset_missing": "../data/processed/HeLa/hela_benchmark_missing_dann_gain.csv",
+    "num_epochs": 1,
+    "num_folds": 2,
+    "seed": 42,
+    "early_stop_patience": 10,
+    "batch_size": 64,
+    "learning_rate": 1e-4,
+    "weight_decay": 0.0, 
+    "num_hidden_layers": 2,
+    "hidden_dim": 1024,
+    "dropout_rate": 0.3,
+    "alpha_weight": 1.0,
+    "beta_weight": 3.0,
+    "gamma_weight": 0.1,
+    "miss_rate": 0.05,
+    "hint_rate": 0.9
+}

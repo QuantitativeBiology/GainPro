@@ -1,0 +1,5 @@
+{   
+    "mode": "inference",
+    "path_dataset": "../data/processed/HeLa/hela_benchmark_dann_gain.csv",
+    "path_trained_model": "./checkpoints/trained_model"
+}
