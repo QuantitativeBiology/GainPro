@@ -1,0 +1,129 @@
+import os
+import errno
+import numpy as np
+import pandas as pd
+from pathlib import Path
+
+from utils.data.dataset import Data
+from utils.data.helper import (
+    load_csv,
+    load_tsv,
+    load_tsv_with_condition,
+    load_anndata,
+    compute_observed_mask,
+    compute_evaluation_mask,
+    induce_missing, 
+    compute_missing_rate,
+    replace_zeros_with_nans,
+    drop_top_n_missing_proteins,
+    drop_proteins_with_missingness_threshold,
+    drop_all_missing_features_and_samples,
+)
+
+class DatasetBuilder:
+    def __init__(
+        self, 
+        cfg: dict
+    ) -> "DatasetBuilder":
+        self.cfg = cfg
+        self.dataset_path = Path(self.cfg["dataset"]["path"])
+        self.dataset_name = self.dataset_path.stem
+        self.miss_rate = self.cfg["dataset"]["miss_rate"]
+        self.hint_rate = self.cfg["dataset"]["hint_rate"]
+
+        if not self.dataset_path.exists():
+            raise FileNotFoundError(errno.ENOENT, os.strerror(errno.ENOENT), self.dataset_path.name)
+
+        self.df = self._load()
+
+        if "condition" in self.df.columns:
+            cat = self.df["condition"].astype("category")
+            self.cell_line = cat.cat.codes
+            self.condition_mapping = dict(enumerate(cat.cat.categories))
+            self.df = self.df.drop(columns=["condition"])
+
+        self._clean()
+        self._log_transform()
+
+        self.reference = None
+        self.missing = None
+        self.mask = None
+
+        # missingness metadata
+        self.original_missingness = None
+        self.current_missingness = None
+
+    def _load(self) -> pd.DataFrame:
+        if self.dataset_path.suffix == ".csv":
+            df = load_csv(self.dataset_path)
+        elif self.dataset_path.suffix == ".h5ad":
+            df = load_anndata(self.dataset_path)
+        elif self.dataset_path.suffix == ".tsv":
+            df = load_tsv_with_condition(self.dataset_path)
+        else:
+            raise ValueError("Invalid file format.") 
+        return df
+
+    def _clean(self) -> pd.DataFrame:
+        if self.cfg["dataset"]["replace_zeros"]:
+            self.df = replace_zeros_with_nans(self.df)
+        self.df = drop_all_missing_features_and_samples(self.df)
+        if self.cfg["dataset"]["drop_top_n_missing"] != 0:
+            self.df = drop_top_n_missing_proteins(self.df, self.cfg["dataset"]["drop_top_n_missing"])
+        if self.cfg["dataset"]["max_protein_missingness"] != 0:
+            self.df = drop_proteins_with_missingness_threshold(self.df, self.cfg["dataset"]["max_protein_missingness"])
+
+    def _log_transform(self) -> None:
+        # print("NOT Log2-transformed DataFrame:\n", self.df)
+        values = self.df.values.astype(float)
+        values_transformed = np.log2(values + 1)
+
+        self.df = pd.DataFrame(
+            data=values_transformed,
+            index=self.df.index,
+            columns=self.df.columns
+        )
+        
+        # print("Log2-transformed DataFrame:\n", self.df)
+
+    def get_dataset_dir(self) -> Path:
+        return self.dataset_path.parent
+
+    def build(
+        self, 
+        fill_zeros: bool,
+        seed: int=42,
+    ) -> Data:
+
+        self.reference = self.df.copy()
+        self.missing = induce_missing(df=self.df, seed=seed, miss_rate=self.cfg["dataset"]["miss_rate"])
+
+        print("Dataset shape", self.reference.shape)
+
+        if self.missing is None: # all missing entries
+            return None
+
+        # save missingness metadata
+        self.original_missingness = compute_missing_rate(self.reference)
+        self.current_missingness = compute_missing_rate(self.missing)
+
+        print(f"Original missing rate: {self.original_missingness:.2%}")
+        print(f"Current missing rate: {self.current_missingness:.2%}")
+
+        self.observed_mask = compute_observed_mask(self.reference)
+        self.artificial_missing_mask = compute_evaluation_mask(self.reference, self.missing)
+
+        if fill_zeros is True:
+            self.reference = self.reference.fillna(0)
+            self.missing = self.missing.fillna(0)
+
+        data = Data(
+            miss_rate=self.miss_rate,
+            hint_rate=self.hint_rate,
+            reference=self.reference,
+            missing=self.missing,
+            observed_mask=self.observed_mask,
+            artificial_missing_mask=self.artificial_missing_mask,
+            cell_line=self.cell_line,
+        )
+        return data
