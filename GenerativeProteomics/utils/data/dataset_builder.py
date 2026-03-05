@@ -95,7 +95,15 @@ class DatasetBuilder:
         seed: int=42,
     ) -> Data:
 
-        self.reference = self.df.copy()
+        self.observed_mask = compute_observed_mask(self.df)
+
+        # - Normalize proteins (columns) between [0,1] -
+        # observed mask due to the nans
+        min_norm = self.df[self.observed_mask].min(axis=0) # min protein value
+        max_norm = self.df[self.observed_mask].max(axis=0) # max protein value
+        X_norm = (self.df - min_norm) / (max_norm - min_norm)
+        self.reference = X_norm
+
         self.missing = induce_missing(df=self.df, seed=seed, miss_rate=self.cfg["dataset"]["miss_rate"])
 
         print("Dataset shape", self.reference.shape)
@@ -110,7 +118,6 @@ class DatasetBuilder:
         print(f"Original missing rate: {self.original_missingness:.2%}")
         print(f"Current missing rate: {self.current_missingness:.2%}")
 
-        self.observed_mask = compute_observed_mask(self.reference)
         self.artificial_missing_mask = compute_evaluation_mask(self.reference, self.missing)
 
         if fill_zeros is True:
@@ -125,5 +132,7 @@ class DatasetBuilder:
             observed_mask=self.observed_mask,
             artificial_missing_mask=self.artificial_missing_mask,
             cell_line=self.cell_line,
+            min_norm=min_norm,
+            max_norm=max_norm,
         )
         return data
