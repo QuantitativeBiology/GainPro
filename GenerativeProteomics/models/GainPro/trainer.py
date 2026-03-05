@@ -263,40 +263,30 @@ class Trainer:
 
         # evaluate (only on artificially masked entries)
         artificial_missing_mask = data.artificial_missing_mask.detach().clone() # only on artificially masked entries
-        print("mask mean", observed_mask.detach().numpy().mean())
         x_hat = self.generate_sample(
             data=x, 
             mask=artificial_missing_mask
         )
-        print("x hat normalized", x_hat)
         mse_loss = nn.MSELoss(reduction="none")
         mse = (
             mse_loss(x_true * artificial_missing_mask, x_hat * artificial_missing_mask)
         ).mean()
         rmse = np.sqrt(mse.detach().cpu().numpy())
 
-        x_hat_aux = x_hat.detach().cpu().numpy()
         max_norm = data.max_norm.values
         min_norm = data.min_norm.values
-        print("\n X HAT AUX", x_hat_aux)
-        print("data max norm", type(max_norm), type(min_norm), type(x_hat_aux))
-        x_hat = x_hat_aux * (max_norm - min_norm) + min_norm # inverse normalization
-        print("x hat 'renormalized'", x_hat)
+        x_hat = x_hat.detach().cpu().numpy() * (max_norm - min_norm) + min_norm # inverse normalization
+        x_true = x_true.detach().cpu().numpy() * (max_norm - min_norm) + min_norm # inverse normalization
 
         # debugging purposes
-        # print("Real mean:", x_true.mean(0))
-        # print("Fake mean:", x_hat.mean(0))
-        # print("Real std:", x_true.std(0))
-        # print("Fake std:", x_hat.std(0))
+        print("Real mean:", x_true.mean(0))
+        print("Fake mean:", x_hat.mean(0))
+        print("Real std:", x_true.std(0))
+        print("Fake std:", x_hat.std(0))
 
-        # revert the logarithm (log2(x+1))
-        x_true_log2p1_inverse = np.power(2, x_true.detach().cpu().numpy())-1
+        # Invert the log2(x + 1) from dataset_builder.py: x = 2^y - 1
+        x_true_log2p1_inverse = np.power(2, x_true)-1
         x_hat_log2p1_inverse = np.power(2, x_hat)-1
-
-        # print("\n\n\n")
-        # print("X TRUE", x_true_log2p1_inverse)
-        # print("X HAT", x_hat_log2p1_inverse)
-        # print("\n\n\n")
 
         experiment_writer.result_writer.save_predictions(
             sample_ids=np.arange(start=0, stop=data.reference.shape[0]),
