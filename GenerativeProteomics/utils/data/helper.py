@@ -217,11 +217,12 @@ def compute_evaluation_mask(
     missing_df: pd.DataFrame,
 ) -> pd.DataFrame:
     """
-    Create binary mask indicating artificially introduced removed entries (artificially removed = 1).
+    Create binary mask indicating artificially introduced removed entries (artificially removed = 0).
 
     Used to assess the imputation performance.
     """
-    return ~reference_df.isna() & missing_df.isna()
+    artificially_removed = reference_df.notna() & missing_df.isna()
+    return artificially_removed
 
 def build_domain(
     df: pd.DataFrame
