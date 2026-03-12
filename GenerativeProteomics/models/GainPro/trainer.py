@@ -272,7 +272,9 @@ class Trainer:
             mse_loss(x_true * artificial_missing_mask, x_hat * artificial_missing_mask)
         ).mean()
         rmse = np.sqrt(mse.detach().cpu().numpy())
+        print("test rmse", rmse.item())
 
+        # Invert the normalization
         max_norm = data.max_norm.values
         min_norm = data.min_norm.values
         x_hat = x_hat.detach().cpu().numpy() * (max_norm - min_norm) + min_norm # inverse normalization
@@ -285,8 +287,11 @@ class Trainer:
         print("Fake std:", x_hat.std(0))
 
         # Invert the log2(x + 1) from dataset_builder.py: x = 2^y - 1
-        x_true_log2p1_inverse = np.power(2, x_true)-1
         x_hat_log2p1_inverse = np.power(2, x_hat)-1
+
+        # Since we filled NANs entries with zeros
+        observed_mask_np = observed_mask.detach().cpu().numpy()
+        x_true_log2p1_inverse = np.where(observed_mask_np == 0, np.nan, np.power(2, x_true) - 1)
 
         experiment_writer.result_writer.save_predictions(
             sample_ids=np.arange(start=0, stop=data.reference.shape[0]),
@@ -309,8 +314,6 @@ class Trainer:
         experiment_writer.metrics_writer.log_metrics(
             metrics=self.metrics,
         )
-
-        print("test rmse", self.metrics.test_metrics["rmse"][0])
 
     
     def kfold_cv(
