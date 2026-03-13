@@ -223,9 +223,10 @@ class Trainer:
         experiment_writer: ExperimentWriter,
     ) -> None:
         
-        print("reference", data.reference)
-        print("missing", data.missing)
-        print("observed mask", data.observed_mask)
+        # print("reference", data.reference)
+        # print("missing", data.missing)
+        # print("observed mask", data.observed_mask)
+        # print("artificial missing mask", data.artificial_missing_mask)
 
         # scaler = ProteomicsScaler()
         
@@ -293,8 +294,17 @@ class Trainer:
         observed_mask_np = observed_mask.detach().cpu().numpy()
         x_true_log2p1_inverse = np.where(observed_mask_np == 0, np.nan, np.power(2, x_true) - 1)
 
+        # print("\n\n\n\n =================== ")
+        # print("true values", x_true_log2p1_inverse)
+        # print("predicted values", x_hat_log2p1_inverse)
+        # print("observed mask", observed_mask)
+        # print("artificial missing mask", artificial_missing_mask)
+        # print("data missing", data.missing)
+        # print("observed mask & artificial missing mask",  torch.logical_and(observed_mask, artificial_missing_mask))
+        # print("\n\n\n\n =================== ")
+
         experiment_writer.result_writer.save_predictions(
-            sample_ids=np.arange(start=0, stop=data.reference.shape[0]),
+            sample_ids=data.sample_names,
             feature_names=data.feature_names,
             true_values=x_true_log2p1_inverse,
             pred_values=x_hat_log2p1_inverse,

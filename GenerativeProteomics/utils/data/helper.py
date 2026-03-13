@@ -157,49 +157,26 @@ def induce_missing(
     seed: int,
     # ceiling_miss_rate: float=1.0,
     miss_rate: float=0.0,
-) -> pd.DataFrame:
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+
     rng = np.random.default_rng(seed)
 
     df_missing = df.copy()
 
-    current_missingness = compute_missing_rate(df_missing)
-    target_missingness = min(current_missingness + miss_rate, 1.0)
-    if target_missingness == 1.0:
-        logger.warning("Not feasible having a dataset with all missing entries. No additional missingness was induced.")
-        return None
-    # if target_missingness > ceiling_miss_rate:
-    #     logger.warning(f"Target missingness ({target_missingness}) has reached the ceiling ({ceiling_miss_rate}). No additional missingness will be induced.")
-    #     return None
+    current_missing = df_missing.isna().sum().sum()
+    total_entries = df_missing.size
 
-    size = df_missing.size
-    n_target_missing_entries = int(target_missingness * size) # number of missing entries with target missingness rate
+    additional_to_mask = int(miss_rate * total_entries)
 
-    # how many more values to mask
-    n_current_missing_entries = df_missing.isna().sum().sum()
-    additional_to_mask = n_target_missing_entries - n_current_missing_entries
+    # positions that currently have values
+    eligible_positions = np.argwhere(df_missing.notna().values)
 
-    # identify all non-missing (eligible) positions
-    # eligible_positions = np.argwhere(~df_missing.isna().values)
-    
-    # Count current non-missing per column
-    non_missing_per_col = df_missing.notna().sum().values  # shape (n_cols,)
-
-    eligible_positions = []
-
-    for i, j in np.argwhere(~df_missing.isna().values):
-        # Only allow masking if column has more than 1 non-missing entry
-        if non_missing_per_col[j] > 10:
-            eligible_positions.append((i, j))
-
-    eligible_positions = np.array(eligible_positions)
     if additional_to_mask > len(eligible_positions):
-        raise ValueError(f"Cannot induce missingness requested.")
+        raise ValueError("Not enough observed entries to mask.")
 
-    # randomly sample positions to mask
-    to_mask_idx = rng.choice(len(eligible_positions), size=additional_to_mask, replace=False)
-    to_mask = eligible_positions[to_mask_idx]
-
-    for i, j in to_mask:
+    chosen_idx = rng.choice(len(eligible_positions), size=additional_to_mask, replace=False)
+    
+    for i, j in eligible_positions[chosen_idx]:
         df_missing.iat[i, j] = np.nan
 
     return df_missing
@@ -210,7 +187,7 @@ def compute_observed_mask(
     """
     Create binary mask indicating originally observed entries (observed entries = 1, missing = 0).
     """
-    return ~reference_df.isna()
+    return reference_df.notna()
 
 def compute_evaluation_mask(
     reference_df: pd.DataFrame,
@@ -221,7 +198,7 @@ def compute_evaluation_mask(
 
     Used to assess the imputation performance.
     """
-    artificially_removed = reference_df.notna() & missing_df.isna()
+    artificially_removed = ~(~reference_df.isna() & missing_df.isna())
     return artificially_removed
 
 def build_domain(

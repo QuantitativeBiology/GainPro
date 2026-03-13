@@ -3,6 +3,7 @@ import errno
 import numpy as np
 import pandas as pd
 from pathlib import Path
+from sklearn.preprocessing import StandardScaler
 
 from utils.data.dataset import Data
 from utils.data.helper import (
@@ -41,9 +42,13 @@ class DatasetBuilder:
             self.cell_line = cat.cat.codes
             self.condition_mapping = dict(enumerate(cat.cat.categories))
             self.df = self.df.drop(columns=["condition"])
+        
+        print(f"Original dataset is {self.df.shape}")
 
         self._clean()
         self._log_transform()
+
+        print(f"After preprocessing {self.df.shape}")
 
         self.reference = None
         self.missing = None
@@ -55,6 +60,7 @@ class DatasetBuilder:
 
     def _load(self) -> pd.DataFrame:
         if self.dataset_path.suffix == ".csv":
+            print("Aqui")
             df = load_csv(self.dataset_path)
         elif self.dataset_path.suffix == ".h5ad":
             df = load_anndata(self.dataset_path)
@@ -74,7 +80,6 @@ class DatasetBuilder:
             self.df = drop_proteins_with_missingness_threshold(self.df, self.cfg["dataset"]["max_protein_missingness"])
 
     def _log_transform(self) -> None:
-        # print("NOT Log2-transformed DataFrame:\n", self.df)
         values = self.df.values.astype(float)
         values_transformed = np.log2(values + 1)
 
@@ -83,8 +88,6 @@ class DatasetBuilder:
             index=self.df.index,
             columns=self.df.columns
         )
-        
-        # print("Log2-transformed DataFrame:\n", self.df)
 
     def get_dataset_dir(self) -> Path:
         return self.dataset_path.parent
@@ -96,14 +99,28 @@ class DatasetBuilder:
     ) -> Data:
 
         self.observed_mask = compute_observed_mask(self.df)
+        print("Observed mask", self.observed_mask)
 
         # - Normalize proteins (columns) between [0,1] -
         # observed mask due to the nans
         min_norm = self.df[self.observed_mask].min(axis=0) # min protein value
         max_norm = self.df[self.observed_mask].max(axis=0) # max protein value
-        X_norm = (self.df - min_norm) / (max_norm - min_norm)
-        self.reference = X_norm
+        X_norm = (self.df[self.observed_mask] - min_norm) / (max_norm - min_norm)
 
+        # todo test with standard scaler
+        # scalers = {}
+        # x_scaled = pd.DataFrame(index=self.df.index, columns=self.df.columns, dtype=float)
+        # for col in self.df.columns:
+        #     observed = self.df[col][self.observed_mask[col] == 1].values.reshape(-1, 1)
+        #     scaler = StandardScaler()
+        #     scaler.fit(observed)
+        #     scalers[col] = scaler
+        #     # transform all values
+        #     x_scaled[col] = scaler.transform(self.df[col])
+
+        # self.reference = x_scaled
+
+        self.reference = X_norm
         self.missing = induce_missing(df=self.df, seed=seed, miss_rate=self.cfg["dataset"]["miss_rate"])
 
         print("Dataset shape", self.reference.shape)
@@ -112,13 +129,16 @@ class DatasetBuilder:
             return None
 
         # save missingness metadata
-        self.original_missingness = compute_missing_rate(self.reference)
+        self.original_missingness = compute_missing_rate(self.df)
         self.current_missingness = compute_missing_rate(self.missing)
 
         print(f"Original missing rate: {self.original_missingness:.2%}")
         print(f"Current missing rate: {self.current_missingness:.2%}")
 
-        self.artificial_missing_mask = compute_evaluation_mask(self.reference, self.missing)
+        self.artificial_missing_mask = compute_evaluation_mask(
+            reference_df=self.df,
+            missing_df=self.missing
+        )
 
         if fill_zeros is True:
             self.reference = self.reference.fillna(0)
@@ -134,5 +154,6 @@ class DatasetBuilder:
             cell_line=self.cell_line,
             min_norm=min_norm,
             max_norm=max_norm,
+            # col_scalers=scalers,
         )
         return data
