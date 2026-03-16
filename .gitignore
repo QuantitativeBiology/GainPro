@@ -1,4 +1,5 @@
 experiments/
+data/
 .DS_Store
 
 # Byte-compiled / optimized / DLL files
@@ -155,8 +156,4 @@ dmypy.json
 # Cython debug symbols
 cython_debug/
 tests/breastMissing_20.csv
-data/raw/PXD008840.tsv
-data/raw/PXD030304.tsv
-data/raw/PXD005736.tsv
 .vscode/settings.json
-data/processed/PXD030304_PXD008840.csv
