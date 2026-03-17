@@ -1,0 +1,11 @@
+num_epochs: 5
+
+batch_size: 32
+
+generator:
+  lr: 1.0e-4
+
+discriminator:
+  lr: 1.0e-3
+
+alpha: 10

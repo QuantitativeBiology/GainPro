@@ -9,6 +9,7 @@ from sklearn.model_selection import KFold, GroupKFold
 from utils.data.dataset import Data
 from models.GainPro.gain import Gain
 from models.GainPro.metrics import Metrics
+from utils.train_hypers import TrainHypers
 from utils.data.proteomics_scaler import ProteomicsScaler
 from utils.writers.experiment_writer import ExperimentWriter
 
@@ -16,22 +17,20 @@ class Trainer:
     def __init__(
         self,
         model: Gain,
-        num_epochs: int,
-        generator_lr: float,
-        discriminator_lr: float,
-        alpha: float
+        train_hypers: TrainHypers,
     ) -> "Trainer":
         
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         
         self.model = model
 
-        self.num_epochs = num_epochs
+        self.num_epochs = train_hypers.num_epochs
+        self.batch_size = train_hypers.batch_size
 
-        self.generator_lr = generator_lr
-        self.discriminator_lr = discriminator_lr
+        self.generator_lr = train_hypers.generator_lr
+        self.discriminator_lr = train_hypers.discriminator_lr
 
-        self.alpha = alpha
+        self.alpha = train_hypers.alpha
 
         self.metrics = Metrics()
 
@@ -128,10 +127,6 @@ class Trainer:
     ) -> tuple[torch.tensor, torch.tensor, float]:
         num_samples, num_proteins = x.shape[0], x.shape[1]
         Z = torch.rand((num_samples, num_proteins), device=self.device) * 0.01 #todo 0.01 can be a hyperparameter (represents noise, confirm tho)
-        # print("z shape", Z.shape)
-        # print("x shape", x.shape)
-        # print("mask shape", mask.shape)
-
 
         discriminator_loss = self._update_discriminator(
             x=x,
@@ -262,7 +257,7 @@ class Trainer:
         experiment_writer.metadata_writer.set_out_dir(out_dir=evaluation_dir)
         experiment_writer.metadata_writer.save_metadata()
 
-        # evaluate (only on artificially masked entries)
+        # evaluate (only on artificially masked entries=0)
         artificial_missing_mask = data.artificial_missing_mask.detach().clone() # only on artificially masked entries
         x_hat = self.generate_sample(
             data=x, 
@@ -270,10 +265,9 @@ class Trainer:
         )
         mse_loss = nn.MSELoss(reduction="none")
         mse = (
-            mse_loss(x_true * artificial_missing_mask, x_hat * artificial_missing_mask)
+            mse_loss(x_true * ~artificial_missing_mask, x_hat * ~artificial_missing_mask)
         ).mean()
         rmse = np.sqrt(mse.detach().cpu().numpy())
-        print("test rmse", rmse.item())
 
         # Invert the normalization
         max_norm = data.max_norm.values
