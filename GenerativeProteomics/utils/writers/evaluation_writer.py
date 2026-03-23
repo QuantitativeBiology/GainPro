@@ -28,4 +28,16 @@ class EvaluationWriter:
         df = pd.DataFrame([rmse], columns=["rmse"])
         df.to_csv(f"{self.evaluation_dir}/rmse.csv", index=True)
 
+    def save_kfold_cv(
+        self,
+        true_matrix: pd.DataFrame,
+        pred_matrix: pd.DataFrame,
+        rmse: float,
+    ) -> None:
+        true_matrix.to_csv(f"{self.evaluation_dir}/true_matrix.csv", index=True)
+        pred_matrix.to_csv(f"{self.evaluation_dir}/pred_matrix.csv", index=True)
+        
+        df = pd.DataFrame([rmse], columns=["rmse"])
+        df.to_csv(f"{self.evaluation_dir}/rmse.csv", index=True)
+
 

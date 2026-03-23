@@ -4,19 +4,27 @@ import pandas as pd
 from datetime import datetime
 from multiprocessing import cpu_count
 
-# r packages
-import rpy2.robjects as ro
-from rpy2.robjects import pandas2ri, numpy2ri
-from rpy2.robjects.packages import importr
-import rpy2.robjects.packages as rpackages
-from rpy2.robjects.conversion import localconverter
 import torch
 
+# todo test
+from missingpy import MissForest
+
+# r packages
+import rpy2.robjects as ro
+from rpy2.robjects.packages import importr
+import rpy2.robjects.packages as rpackages
+from rpy2.robjects import pandas2ri, numpy2ri
+from rpy2.robjects.conversion import localconverter
+
 from utils.data.dataset import Data
+from utils.model_hypers import MissForestHypers
 from utils.writers.experiment_writer import ExperimentWriter
 
 class MissForestRImputationModel:
-    def __init__(self) -> "MissForestRImputationModel":
+    def __init__(
+        self,
+        missforest_hypers: MissForestHypers,
+    ) -> "MissForestRImputationModel":
         if shutil.which("R") is None:
             raise RuntimeError(
                 "R executable not found. You must install R (https://cran.r-project.org/) "
@@ -48,6 +56,9 @@ class MissForestRImputationModel:
                 cl <- makeCluster({self.n_cores})
                 registerDoParallel(cl)
             """)
+            self.n_tree = missforest_hypers.n_tree
+            self.max_iter = missforest_hypers.max_iter
+
         except Exception as e:  
             print("The 'missForest' R package is not installed. Please install it in your R environment.")
             raise e
@@ -120,9 +131,10 @@ class MissForestRImputationModel:
     def evaluate(
         self,
         data: Data,
-        experiment_writer: ExperimentWriter,
         strategy: str,
-        num_folds: int = None,
+        experiment_writer: ExperimentWriter,
+        idxs_folds: list,
+        num_folds: int = None, #todo change
     ) -> None:
         """
         Args:
@@ -137,9 +149,10 @@ class MissForestRImputationModel:
             )
         elif strategy == "k-fold":
             self.kfold_cv(
-                num_folds=num_folds,
                 data=data,
-                experiment_writer=experiment_writer
+                experiment_writer=experiment_writer,
+                idxs_folds=idxs_folds,
+                num_folds=5, #todo change
             )
         else:
             raise ValueError(f"Invalid cross validation strategy. Available strategies: Hold-out ('hold-out') and K-Fold ('k-fold').")
@@ -149,7 +162,7 @@ class MissForestRImputationModel:
         data: Data,
         experiment_writer: ExperimentWriter,
     ) -> None:
-        # Hold-out cross-validation
+
         with localconverter(ro.default_converter + pandas2ri.converter):
             missing_df = pd.DataFrame(
                 data.missing.detach().cpu().numpy().astype("float64"),
@@ -166,8 +179,8 @@ class MissForestRImputationModel:
         experiment_writer.metadata_writer.set_start_time(datetime.now())
         res = self.missforest.missForest(
             xmis=r_missing_df,
-            ntree=3,
-            maxiter=2,
+            ntree=1,
+            maxiter=1,
             parallelize=ro.StrVector(["forests"]),
             verbose=True,
         )
@@ -225,8 +238,77 @@ class MissForestRImputationModel:
 
     def kfold_cv(
         self,
-        num_folds: int,
         data: Data,
         experiment_writer: ExperimentWriter,
+        idxs_folds: list,
+        num_folds: int,
     ) -> None:
-        pass
+        
+        folds_dir = experiment_writer.evaluation_dir / "k-fold"
+        folds_dir.mkdir(parents=True, exist_ok=True)
+        
+        for fold_id in range(1, num_folds+1):
+            print(f"\n\n------------ Fold {fold_id}/{num_folds} ------------\n")
+            fold_dir = folds_dir / f"fold_{fold_id}"
+            fold_dir.mkdir(parents=True, exist_ok=True)
+            experiment_writer.metadata_writer.set_out_dir(fold_dir)
+
+            train_idx = idxs_folds[fold_id-1]["trainval_idx"]
+            test_idx = idxs_folds[fold_id-1]["test_idx"]
+
+            train_missing = data.missing[train_idx, :]
+            test_missing = data.missing[test_idx, :]
+            test_reference = data.reference[test_idx, :]
+
+            train_missing_df = pd.DataFrame(train_missing)
+            missing_cols = train_missing_df.columns[train_missing_df.isna().all()]
+            print(missing_cols)
+            print("number of training samples", len(train_idx))
+            # print(train_missing_df)
+
+            if fold_id == 3:
+
+                print("Starting missForest calculation...")
+                imputer = MissForest(
+                    max_iter=self.n_tree,
+                    n_estimators=self.max_iter,  
+                ) #todo is this run in parallel?
+                experiment_writer.metadata_writer.set_start_time(datetime.now())
+                train_missing_df = pd.DataFrame(train_missing)
+                missing_cols = train_missing_df.columns[train_missing_df.isna().all()]
+                print(missing_cols)
+                imputer.fit(train_missing)
+                experiment_writer.metadata_writer.set_end_time(datetime.now())
+                experiment_writer.metadata_writer.save_metadata()
+                print("Ended!\n")
+
+
+                test_imputed = imputer.transform(test_missing)
+                print("type test imputed", type(test_imputed))
+
+                print("Computing the error (RMSE)...")
+                test_reference_np = test_reference.detach().cpu().numpy()
+                diff = test_reference_np - test_imputed
+                rmse = np.sqrt(np.mean(diff ** 2))
+                print("RMSE:", rmse)
+
+                # Revert the logarithm of base 2
+                x_true_log2p1_inverse = pd.DataFrame(
+                    np.power(2, test_reference_np)-1,
+                )
+                x_pred_log2p1_inverse = pd.DataFrame(
+                    np.power(2, test_imputed)-1,
+                )
+                print("imputed", x_pred_log2p1_inverse)
+
+                experiment_writer.evaluation_writer.set_evaluation_dir(
+                    eval_dir=fold_dir
+                )
+                print("Saving files...")
+                experiment_writer.evaluation_writer.save_kfold_cv(
+                    true_matrix=x_true_log2p1_inverse,
+                    pred_matrix=x_pred_log2p1_inverse,
+                    rmse=rmse,
+                )
+            
+        self.shutdown_parallel()
