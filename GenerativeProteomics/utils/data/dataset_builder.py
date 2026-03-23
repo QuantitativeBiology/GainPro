@@ -24,13 +24,25 @@ from utils.data.helper import (
 class DatasetBuilder:
     def __init__(
         self, 
-        cfg: dict
+        cfg: dict,
+        miss_rate: float=None,
+        hint_rate: float=None,
     ) -> "DatasetBuilder":
         self.cfg = cfg
         self.dataset_path = Path(self.cfg["dataset"]["path"])
         self.dataset_name = self.dataset_path.stem
-        self.miss_rate = self.cfg["dataset"]["miss_rate"]
-        self.hint_rate = self.cfg["dataset"]["hint_rate"]
+        
+        if miss_rate is None:
+            self.miss_rate = self.cfg["dataset"]["miss_rate"]
+        else:
+            self.miss_rate = miss_rate
+
+        print("miss rate in dataset builder", self.miss_rate)
+        
+        if hint_rate is None:
+            self.hint_rate = self.cfg["dataset"]["hint_rate"]
+        else:
+            self.hint_rate = hint_rate
 
         if not self.dataset_path.exists():
             raise FileNotFoundError(errno.ENOENT, os.strerror(errno.ENOENT), self.dataset_path.name)
@@ -42,13 +54,21 @@ class DatasetBuilder:
             self.cell_line = cat.cat.codes
             self.condition_mapping = dict(enumerate(cat.cat.categories))
             self.df = self.df.drop(columns=["condition"])
-        
-        print(f"Original dataset is {self.df.shape}")
+
+        if "Cell_line" in self.df.columns:
+            cat = self.df["Cell_line"].astype("category")
+            self.cell_line = cat.cat.codes
+            self.condition_mapping = dict(enumerate(cat.cat.categories))
+            self.df = self.df.drop(columns=["Cell_line"])
+
+        if "tissue" in self.df.columns: #todo especificar no readme qual o formato dos datasets esperado
+            cat = self.df["tissue"].astype("category")
+            self.tissue = cat.cat.codes
+            self.tissue_mapping = dict(enumerate(cat.cat.categories))
+            self.df = self.df.drop(columns=["tissue"])
 
         self._clean()
         self._log_transform()
-
-        print(f"After preprocessing {self.df.shape}")
 
         self.reference = None
         self.missing = None
@@ -60,7 +80,6 @@ class DatasetBuilder:
 
     def _load(self) -> pd.DataFrame:
         if self.dataset_path.suffix == ".csv":
-            print("Aqui")
             df = load_csv(self.dataset_path)
         elif self.dataset_path.suffix == ".h5ad":
             df = load_anndata(self.dataset_path)
@@ -76,8 +95,6 @@ class DatasetBuilder:
         self.df = drop_all_missing_features_and_samples(self.df)
         if self.cfg["dataset"]["drop_top_n_missing"] != 0:
             self.df = drop_top_n_missing_proteins(self.df, self.cfg["dataset"]["drop_top_n_missing"])
-        if self.cfg["dataset"]["max_protein_missingness"] != 0:
-            self.df = drop_proteins_with_missingness_threshold(self.df, self.cfg["dataset"]["max_protein_missingness"])
 
     def _log_transform(self) -> None:
         values = self.df.values.astype(float)
@@ -99,7 +116,6 @@ class DatasetBuilder:
     ) -> Data:
 
         self.observed_mask = compute_observed_mask(self.df)
-        print("Observed mask", self.observed_mask)
 
         # - Normalize proteins (columns) between [0,1] -
         # observed mask due to the nans
@@ -121,9 +137,9 @@ class DatasetBuilder:
         # self.reference = x_scaled
 
         self.reference = X_norm
-        self.missing = induce_missing(df=self.df, seed=seed, miss_rate=self.cfg["dataset"]["miss_rate"])
+        self.missing = induce_missing(df=self.df, seed=seed, miss_rate=self.miss_rate)
 
-        print("Dataset shape", self.reference.shape)
+        print("Dataset shape:", self.reference.shape)
 
         if self.missing is None: # all missing entries
             return None
@@ -134,6 +150,7 @@ class DatasetBuilder:
 
         print(f"Original missing rate: {self.original_missingness:.2%}")
         print(f"Current missing rate: {self.current_missingness:.2%}")
+        print("\n")
 
         self.artificial_missing_mask = compute_evaluation_mask(
             reference_df=self.df,

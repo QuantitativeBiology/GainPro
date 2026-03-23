@@ -1,7 +1,6 @@
 import torch
 import torch.nn as nn
 
-from utils.model_hypers import ModelHypers
 from models.GainPro.generator import Generator
 from models.GainPro.discriminator import Discriminator
 
@@ -9,22 +8,25 @@ class Gain(nn.Module):
     def __init__(
         self,
         input_dim: int,
-        model_hypers: ModelHypers,
+        num_hidden_layers_generator: int,
+        num_hidden_layers_discriminator: int,
     ) -> "Gain":
         super().__init__()
 
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.input_dim = input_dim
+        self.num_hidden_layers_generator = num_hidden_layers_generator
+        self.num_hidden_layers_discriminator = num_hidden_layers_discriminator
 
         self.generator = Generator(
             input_dim=self.input_dim,
-            num_hidden_layers=model_hypers.generator_n_hidden_layers
+            num_hidden_layers=self.num_hidden_layers_generator
         )
         self.generator.to(device=self.device)
 
         self.discriminator = Discriminator(
             input_dim=self.input_dim,
-            num_hidden_layers=model_hypers.discriminator_n_hidden_layers
+            num_hidden_layers=self.num_hidden_layers_discriminator
         )
         self.discriminator.to(device=self.device)
 

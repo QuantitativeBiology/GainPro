@@ -1,7 +1,7 @@
 from utils.data.dataset import Data
 from models.GainPro.gain import Gain
 from models.GainPro.trainer import Trainer
-from utils.model_hypers import ModelHypers
+from utils.model_hypers import GainHypers
 from utils.train_hypers import TrainHypers
 from utils.writers.experiment_writer import ExperimentWriter
 
@@ -9,12 +9,13 @@ class GainImputationModel:
     def __init__(
         self,
         input_dim: int,
-        model_hypers: ModelHypers,
+        gain_hypers: GainHypers,
         train_hypers: TrainHypers,
     ) -> "GainImputationModel":
         self.gain = Gain(
             input_dim=input_dim,
-            model_hypers=model_hypers,
+            num_hidden_layers_generator=gain_hypers.num_hidden_layers_generator,
+            num_hidden_layers_discriminator=gain_hypers.num_hidden_layers_discriminator
         )
 
         self.trainer = Trainer(
@@ -30,10 +31,11 @@ class GainImputationModel:
 
     def evaluate(
         self,
+        strategy: str,
         data: Data,
         experiment_writer: ExperimentWriter,
-        strategy: str,
-        num_folds: int = None,
+        idxs_folds: list=None,
+        num_folds: int=None, #todo para o caso de não existir um split a priori
     ) -> None:
         """
         Args:
@@ -50,7 +52,8 @@ class GainImputationModel:
         elif strategy == "k-fold":
             self.trainer.evaluate(
                 strategy=strategy,
-                num_folds=2, #todo hardcoded
+                idxs_folds=idxs_folds,
+                num_folds=num_folds,
                 data=data,
                 experiment_writer=experiment_writer
             )

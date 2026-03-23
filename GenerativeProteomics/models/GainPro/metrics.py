@@ -8,7 +8,7 @@ class Metrics:
     ) -> "Metrics":
         
         self.train_metrics = self.init_epoch()
-        self.test_metrics = self.init_epoch()
+        self.val_metrics = self.init_epoch()
 
         # fix: os nomes das losses deviam ser d_loss and not loss_d
         # self.discriminator_loss = np.zeros(num_epochs)
@@ -44,11 +44,11 @@ class Metrics:
         return self.train_metrics
     
     def get_val_metrics(self) -> dict[str, list]:
-        return self.test_metrics
+        return self.val_metrics
 
     def to_dataframe(self) -> pd.DataFrame:
         train_metrics = pd.DataFrame(self.train_metrics)
-        val_metrics = pd.DataFrame(self.test_metrics)
+        val_metrics = pd.DataFrame(self.val_metrics)
 
         epochs = np.arange(1, len(train_metrics) + 1)
         train_metrics.index = epochs
@@ -78,5 +78,5 @@ class Metrics:
     def __str__(self) -> str:
         return (
             f"Train: {self.train_metrics}\n"
-            f"Test: {self.test_metrics}\n"
+            f"Test: {self.val_metrics}\n"
         )

@@ -1,5 +1,5 @@
 from utils.data.dataset import Data
-from utils.model_hypers import ModelHypers
+from utils.model_hypers import GainHypers, MissForestHypers
 from utils.train_hypers import TrainHypers
 from wrappers.gain import GainImputationModel
 from wrappers.mean import MeanImputationModel
@@ -11,62 +11,67 @@ from utils.writers.experiment_writer import ExperimentWriter
 class ImputationManager:
     def __init__(
         self,
-        input_dim: int,
         experiment_writer: ExperimentWriter,
+        model_name: str,
+        input_dim: int=None,
         model_cfg: dict=None,
         train_cfg: dict=None,
     ) -> "ImputationManager":
-        self.imputation_methods = {
-            "protogain": GainImputationModel(
-                input_dim=input_dim,
-                model_hypers=ModelHypers(model_cfg),
-                train_hypers=TrainHypers(train_cfg)
-            ),
-            "mean": MeanImputationModel(), 
-            "missForest": MissForestRImputationModel(), 
-            "mice": IterativeMICEImputationModel(),
-        }
+        self.initialize_model(
+            model_name=model_name,
+            input_dim=input_dim,
+            model_cfg=model_cfg,
+            train_cfg=train_cfg,
+        )
         self.experiment_writer = experiment_writer
 
-    def add_method(
-        self, 
-        model: str, 
-        fn,
-    ) -> None: 
-        if model in self.imputation_methods:
-            raise SystemExit ("Method already exists")
+    def initialize_model(
+        self,
+        model_name: str,
+        input_dim: int=None,
+        model_cfg: dict=None,
+        train_cfg: dict=None,
+    ) -> None:
+        if model_name == "protogain":
+            self.model = GainImputationModel(
+                input_dim=input_dim,
+                gain_hypers=GainHypers(model_cfg),
+                train_hypers=TrainHypers(train_cfg),
+            )
+        elif model_name == "mean":
+            self.model = MeanImputationModel()
+        elif model_name == "missForest":
+            self.model = MissForestRImputationModel(
+                missforest_hypers=MissForestHypers(model_cfg)
+            )
+        elif model_name == "mice":
+            self.model = IterativeMICEImputationModel()
         else:
-            self.imputation_methods.update({model:fn})
+            raise ValueError(f"Unknown {model_name} model. Models available are: protogain, mean, missForest and mice.")
 
     def run_train(
-        self, 
-        model_name: str,
+        self,
         dataset_name: str,
         data: Data,
     ):
-        if model_name not in self.imputation_methods:
-            raise SystemExit (f"Unknown {model_name} model. \n Models available are: {','.join(self.imputation_methods)}")
-        else:
-            return self.imputation_methods[model_name].train(
-                dataset_name=dataset_name, 
-                experiment_writer=self.experiment_writer,
-                data=data,
-            )
+        return self.model.train(
+            dataset_name=dataset_name, 
+            experiment_writer=self.experiment_writer,
+            data=data,
+        )
     
     def run_evaluate(
         self,
-        model_name: str,
-        data: Data,
         strategy: str,
+        idxs_folds: list,
+        data: Data,
     ):
-        if model_name not in self.imputation_methods:
-            raise SystemExit (f"Unknown {model_name} model. \n Models available are: {','.join(self.imputation_methods)}")
-        else:
-            return self.imputation_methods[model_name].evaluate(
-                experiment_writer=self.experiment_writer,
-                data=data,
-                strategy=strategy,
-            )
+        return self.model.evaluate(
+            strategy=strategy,
+            data=data,
+            idxs_folds=idxs_folds,
+            experiment_writer=self.experiment_writer,
+        )
 
 
 

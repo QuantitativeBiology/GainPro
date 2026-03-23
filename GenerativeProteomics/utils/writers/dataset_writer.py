@@ -18,11 +18,41 @@ class DatasetWriter:
         data: Data,
         out_dir: Path,
     ) -> None:
-        cls._save_df(data.reference, f"{out_dir}/reference.csv")
-        cls._save_df(data.missing, f"{out_dir}/missing.csv")
-        cls._save_df(data.mask, f"{out_dir}/mask.csv")
-        cls._save_df(data.domain, f"{out_dir}/domain.csv")
-        cls._save_df(data.domain_mapped, f"{out_dir}/domain_mapped.csv")
+
+        cls._save_df(
+            pd.DataFrame(
+                data.reference.detach().cpu().numpy(),
+                index=data.sample_names,
+                columns=data.feature_names
+            ), 
+            f"{out_dir}/reference.csv"
+        )
+        cls._save_df(
+            pd.DataFrame(
+                data.missing.detach().cpu().numpy(),
+                index=data.sample_names,
+                columns=data.feature_names
+            ), 
+            f"{out_dir}/missing.csv"
+        )
+        cls._save_df(
+            pd.DataFrame(
+                data.observed_mask.detach().cpu().numpy(),
+                index=data.sample_names,
+                columns=data.feature_names
+            ),  
+            f"{out_dir}/observed_mask.csv")
+        cls._save_df(
+            pd.DataFrame(
+                data.artificial_missing_mask.detach().cpu().numpy(),
+                index=data.sample_names,
+                columns=data.feature_names
+            ),  
+            f"{out_dir}/artificial_missing_mask.csv"
+        )
+        # todo save cell line and/or condition and/or tissue
+        # cls._save_df(data.cell_line, f"{out_dir}/cell_line.csv")
+        # cls._save_df(data.cell_line_mapping, f"{out_dir}/cell_line_mapping.csv")
     
     def save_data_metadata(
         cls,

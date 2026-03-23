@@ -13,6 +13,7 @@ class Data:
         artificial_missing_mask: pd.DataFrame,
         min_norm: pd.DataFrame,
         max_norm: pd.DataFrame,
+        # col_scalers: dict,
         cell_line: pd.DataFrame = None,
         cell_line_mapping: dict = None,
     ) -> "Data":
@@ -33,6 +34,7 @@ class Data:
 
         self.min_norm = min_norm
         self.max_norm = max_norm
+        # self.col_scalers = col_scalers
 
         self.miss_rate = miss_rate
         self.hint_rate = hint_rate
