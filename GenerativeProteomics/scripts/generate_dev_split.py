@@ -27,9 +27,9 @@ def kfold(
     kf = KFold(n_splits=num_folds, shuffle=True, random_state=seed)
 
     for fold_id, (trainval_idx, test_idx) in enumerate(kf.split(df), start=1):
-        print(f"fold id {fold_id}")
-        print(f"train idx", trainval_idx)
-        print(f"test idx", test_idx)
+        # print(f"fold id {fold_id}")
+        # print(f"train idx", trainval_idx)
+        # print(f"test idx", test_idx)
         fold_dir = save_dir / f"fold_{fold_id}"
         fold_dir.mkdir(parents=True, exist_ok=True)
 

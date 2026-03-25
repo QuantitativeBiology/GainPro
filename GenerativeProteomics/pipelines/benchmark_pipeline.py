@@ -10,8 +10,9 @@ from utils.writers.dataset_writer import DatasetWriter
 from utils.writers.experiment_writer import ExperimentWriter
 
 from utils.train_hypers import TrainHypers
-from utils.model_hypers import GainHypers
 from wrappers.gain import GainImputationModel
+from wrappers.missforest import MissForestRImputationModel
+from utils.model_hypers import GainHypers, MissForestHypers
 
 from scripts.generate_dev_split import kfold
 
@@ -104,6 +105,11 @@ def run_benchmark(
                         gain_hypers=GainHypers(model_config),
                         train_hypers=TrainHypers(train_config),
                     )
+                if model["name"] == "missForest":
+                    model_config = read_config(model["model_config"])
+                    missForest = MissForestRImputationModel(
+                        missforest_hypers=MissForestHypers(model_config)
+                    )
 
                 # Validation strategy
                 val_strategy = benchmark_cfg["validation_strategy"][0]["name"]
@@ -118,7 +124,7 @@ def run_benchmark(
                     )
 
                     # Retrieve the train/test fold's indices
-                    folds_dir = get_project_root() / f"data/splits/{dataset_cfg_path.stem}/k-fold"
+                    folds_dir = get_project_root() / f"data/splits/{Path(dataset_cfg["dataset"]["path"]).stem}/k-fold"
 
                     idxs_folds = list()
                     for fold in folds_dir.iterdir():
@@ -133,4 +139,12 @@ def run_benchmark(
                             experiment_writer=experiment_writer,
                             idxs_folds=idxs_folds,
                             num_folds=num_folds,
+                        )
+                    if model["name"] == "missForest":
+                        missForest.evaluate(
+                            data=data,
+                            strategy=val_strategy,
+                            experiment_writer=experiment_writer,
+                            idxs_folds=idxs_folds,
+                            num_folds=num_folds
                         )

@@ -257,38 +257,46 @@ class MissForestRImputationModel:
             test_idx = idxs_folds[fold_id-1]["test_idx"]
 
             train_missing = data.missing[train_idx, :]
+
             test_missing = data.missing[test_idx, :]
             test_reference = data.reference[test_idx, :]
+            test_artificial_missing_mask = data.artificial_missing_mask[test_idx, :]
 
-            train_missing_df = pd.DataFrame(train_missing)
+            # todo 4 lines below are just for testing purposes
+            train_missing_df = pd.DataFrame(train_missing.detach().cpu().numpy())
             missing_cols = train_missing_df.columns[train_missing_df.isna().all()]
-            print(missing_cols)
+            print("missing cols", missing_cols)
             print("number of training samples", len(train_idx))
             # print(train_missing_df)
 
-            if fold_id == 3:
+            if fold_id == 2:
 
                 print("Starting missForest calculation...")
                 imputer = MissForest(
                     max_iter=self.n_tree,
-                    n_estimators=self.max_iter,  
-                ) #todo is this run in parallel?
+                    n_estimators=self.max_iter,
+                    max_features=None,
+                    criterion=("squared_error")  
+                ) #todo implement/call parallelization
                 experiment_writer.metadata_writer.set_start_time(datetime.now())
-                train_missing_df = pd.DataFrame(train_missing)
-                missing_cols = train_missing_df.columns[train_missing_df.isna().all()]
-                print(missing_cols)
-                imputer.fit(train_missing)
+                imputer.fit(train_missing.detach().cpu().numpy())
                 experiment_writer.metadata_writer.set_end_time(datetime.now())
                 experiment_writer.metadata_writer.save_metadata()
                 print("Ended!\n")
 
-
-                test_imputed = imputer.transform(test_missing)
+                test_imputed = imputer.transform(test_missing.detach().cpu().numpy())
                 print("type test imputed", type(test_imputed))
 
                 print("Computing the error (RMSE)...")
                 test_reference_np = test_reference.detach().cpu().numpy()
+                print("Test reference np", test_reference_np)
                 diff = test_reference_np - test_imputed
+                print("Diff", diff)
+                mask = ~test_artificial_missing_mask.detach().cpu().numpy()
+                print("mask", type(mask), mask)
+                diff = diff[mask]
+                print("diff[mask]", diff)
+                print("diff[mask].shape", diff.shape)
                 rmse = np.sqrt(np.mean(diff ** 2))
                 print("RMSE:", rmse)
 
