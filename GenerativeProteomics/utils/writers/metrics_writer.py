@@ -54,8 +54,6 @@ class MetricsWriter:
             fold_id=fold_id,
             metrics=metrics.get_val_metrics(),
         )
-        
-        print("val df", val_df)
 
         train_path = self.out_dir / "train.csv"
         val_path = self.out_dir / "validation.csv"

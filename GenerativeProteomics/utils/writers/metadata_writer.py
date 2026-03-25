@@ -35,6 +35,12 @@ class MetadataWriter:
     ) -> None:
         self.end_time = end_time
 
+    def set_fold_id(
+        self,
+        fold_id: int,
+    ) -> None:
+        self.fold_id = fold_id
+
     # @property
     def duration_seconds(
         self
