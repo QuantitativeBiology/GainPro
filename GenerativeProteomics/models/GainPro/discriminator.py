@@ -19,14 +19,14 @@ class Discriminator(nn.Module):
         # data_imputed    : shape (batch, input_dim)
         # hint            : shape (batch, input_dim)
         # After concatenation -> (batch, 2 * input_dim)
-        self.layers.append(nn.ReLU())
+        self.layers.append(nn.LeakyReLU())
 
         for _ in range(num_hidden_layers):
             self.layers.append(nn.Linear(self.input_dim, self.input_dim))
-            self.layers.append(nn.ReLU())
+            self.layers.append(nn.LeakyReLU())
         
-        self.layers.append(nn.Linear(self.input_dim, self.input_dim))
-        # self.layers.append(nn.Sigmoid())
+        # self.layers.append(nn.Linear(self.input_dim, self.input_dim))
+        self.layers.append(nn.Sigmoid())
     
     def forward(
         self,

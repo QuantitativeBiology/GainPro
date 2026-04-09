@@ -18,11 +18,11 @@ class Generator(nn.Module):
         # data_with_noise : shape (batch, input_dim)
         # mask            : shape (batch, input_dim)
         # After concatenation -> (batch, 2 * input_dim)
-        self.layers.append(nn.ReLU())
+        self.layers.append(nn.LeakyReLU()) 
 
         for _ in range(num_hidden_layers):
             self.layers.append(nn.Linear(self.input_dim, self.input_dim))
-            self.layers.append(nn.ReLU())
+            self.layers.append(nn.LeakyReLU())
         
         self.layers.append(nn.Linear(self.input_dim, self.input_dim))
     
