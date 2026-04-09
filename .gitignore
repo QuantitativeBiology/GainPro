@@ -1,5 +1,8 @@
 experiments/
-data/
+data/processed
+data/raw
+data/splits
+data/breast
 .DS_Store
 
 # Byte-compiled / optimized / DLL files
