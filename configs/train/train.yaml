@@ -1,11 +1,11 @@
-num_epochs: 5
+num_epochs: 2000
 
 batch_size: 32
 
 generator:
-  lr: 1.0e-4
+  lr: 1.0e-5
 
 discriminator:
-  lr: 1.0e-3
+  lr: 1.0e-5
 
 alpha: 10

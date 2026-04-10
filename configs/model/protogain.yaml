@@ -1,7 +1,7 @@
 name: protogain
 
 generator:
-  num_layers: 1
+  num_layers: 3
 
 discriminator:
-  num_layers: 1
+  num_layers: 2
