@@ -29,7 +29,7 @@ class Trainer:
         self.generator_lr = train_hypers.generator_lr
         self.discriminator_lr = train_hypers.discriminator_lr
 
-        self.optimizer_G = torch.optim.Adam(self.model.generator.parameters(), lr=self.discriminator_lr)
+        self.optimizer_G = torch.optim.Adam(self.model.generator.parameters(), lr=self.generate_lr)
         self.optimizer_D = torch.optim.Adam(self.model.discriminator.parameters(), lr=self.discriminator_lr)
 
         self.alpha = train_hypers.alpha
@@ -96,10 +96,13 @@ class Trainer:
         fake_Y = self.model.discriminator(fake_input_D)
 
         ones = torch.ones_like(x)
-        loss_G_entropy = (
-            loss(fake_Y, ones.reshape(fake_Y.shape).float().to(self.device)) * (1 - mask)
-        ).mean()
+        # loss_G_entropy = (
+        #     loss(fake_Y, ones.reshape(fake_Y.shape).float().to(self.device)) * (1 - mask)
+        # ).mean()
         observed_entries = mask.bool()
+        loss_G_entropy = (
+            loss(fake_Y, ones.reshape(fake_Y.shape).float().to(self.device))[~observed_entries]
+        ).mean()
         loss_G_mse = (
             loss_mse((sample_G[observed_entries]).float(), (x[observed_entries]).float())
         ).mean()
