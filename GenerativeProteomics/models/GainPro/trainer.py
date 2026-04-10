@@ -29,7 +29,7 @@ class Trainer:
         self.generator_lr = train_hypers.generator_lr
         self.discriminator_lr = train_hypers.discriminator_lr
 
-        self.optimizer_G = torch.optim.Adam(self.model.generator.parameters(), lr=self.generate_lr)
+        self.optimizer_G = torch.optim.Adam(self.model.generator.parameters(), lr=self.generator_lr)
         self.optimizer_D = torch.optim.Adam(self.model.discriminator.parameters(), lr=self.discriminator_lr)
 
         self.alpha = train_hypers.alpha
