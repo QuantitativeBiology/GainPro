@@ -4,9 +4,8 @@ import pandas as pd
 from datetime import datetime
 from multiprocessing import cpu_count
 
-import torch
+from sklearn.model_selection import StratifiedGroupKFold
 
-# todo test
 from missingpy import MissForest
 
 # r packages
@@ -133,8 +132,7 @@ class MissForestRImputationModel:
         data: Data,
         strategy: str,
         experiment_writer: ExperimentWriter,
-        idxs_folds: list,
-        num_folds: int = None, #todo change
+        num_folds: int = None,
     ) -> None:
         """
         Args:
@@ -147,12 +145,11 @@ class MissForestRImputationModel:
                 data=data,
                 experiment_writer=experiment_writer
             )
-        elif strategy == "k-fold":
-            self.kfold_cv(
+        elif strategy == "group-k-fold":
+            self.group_kfold_cv(
                 data=data,
                 experiment_writer=experiment_writer,
-                idxs_folds=idxs_folds,
-                num_folds=5, #todo change
+                num_folds=num_folds,
             )
         else:
             raise ValueError(f"Invalid cross validation strategy. Available strategies: Hold-out ('hold-out') and K-Fold ('k-fold').")
@@ -213,13 +210,22 @@ class MissForestRImputationModel:
         rmse = np.sqrt(np.mean(diff ** 2))
         print("rmse:", rmse)
 
+        # Invert the normalization
+        max_norm = data.max_norm.values
+        min_norm = data.min_norm.values
+        x_pred = x_pred_np * (max_norm - min_norm) + min_norm # inverse normalization
+        x_true_test = x_true_np * (max_norm - min_norm) + min_norm # inverse normalization
 
-        # revert the logarithm of base 2
+        # Invert the log2(x + 1) from dataset_builder.py: x = 2^y - 1
         x_true_log2p1_inverse = pd.DataFrame(
-            np.power(2, x_true_np)-1,
+            np.power(2, x_true_test)-1,
+            index=np.array(data.sample_names),
+            columns=data.feature_names,
         )
         x_pred_log2p1_inverse = pd.DataFrame(
-            np.power(2, x_pred_np)-1,
+            np.power(2, x_pred)-1,
+            index=np.array(data.sample_names),
+            columns=data.feature_names,
         )
         print("imputed", x_pred_log2p1_inverse)
         
@@ -236,87 +242,114 @@ class MissForestRImputationModel:
 
         self.shutdown_parallel()
 
-    def kfold_cv(
+    def group_kfold_cv(
         self,
         data: Data,
         experiment_writer: ExperimentWriter,
-        idxs_folds: list,
         num_folds: int,
     ) -> None:
+        sgkf = StratifiedGroupKFold(n_splits=num_folds)
+        groups = data.tissue.cpu().numpy()
+        y = groups
         
-        folds_dir = experiment_writer.evaluation_dir / "k-fold"
+        folds_dir = experiment_writer.evaluation_dir / "groupkfold"
         folds_dir.mkdir(parents=True, exist_ok=True)
-        
-        for fold_id in range(1, num_folds+1):
+
+        reference_np = data.reference.cpu().detach().numpy()
+        observed_mask_np = data.observed_mask.cpu().detach().numpy()
+
+        for fold_id, (train_idx, test_idx) in enumerate(
+            sgkf.split(X=reference_np, y=y, groups=groups), start=1
+        ):
             print(f"\n\n------------ Fold {fold_id}/{num_folds} ------------\n")
+
             fold_dir = folds_dir / f"fold_{fold_id}"
             fold_dir.mkdir(parents=True, exist_ok=True)
             experiment_writer.metadata_writer.set_out_dir(fold_dir)
 
-            train_idx = idxs_folds[fold_id-1]["trainval_idx"]
-            test_idx = idxs_folds[fold_id-1]["test_idx"]
+            train_reference = reference_np[train_idx, :]
 
-            train_missing = data.missing[train_idx, :]
+            print("Fitting missForest...")
+            imputer = MissForest(
+                max_iter=self.n_tree,
+                n_estimators=self.max_iter,
+                max_features=None,
+                criterion=("squared_error")  
+            )
+            experiment_writer.metadata_writer.set_start_time(datetime.now())
+            imputer.fit(train_reference)
 
-            test_missing = data.missing[test_idx, :]
-            test_reference = data.reference[test_idx, :]
-            test_artificial_missing_mask = data.artificial_missing_mask[test_idx, :]
+            # Test each sample as completely unobserved
+            n_samples, n_features = reference_np[test_idx, :].shape
+            observed_mask_test = observed_mask_np[test_idx, :]
 
-            # todo 4 lines below are just for testing purposes
-            train_missing_df = pd.DataFrame(train_missing.detach().cpu().numpy())
-            missing_cols = train_missing_df.columns[train_missing_df.isna().all()]
-            print("missing cols", missing_cols)
-            print("number of training samples", len(train_idx))
-            # print(train_missing_df)
+            n_test, n_features = reference_np[test_idx, :].shape
 
-            if fold_id == 2:
+            test_anchor = np.full((n_test, n_features), np.nan)
+            rng = np.random.default_rng(seed=42)
 
-                print("Starting missForest calculation...")
-                imputer = MissForest(
-                    max_iter=self.n_tree,
-                    n_estimators=self.max_iter,
-                    max_features=None,
-                    criterion=("squared_error")  
-                ) #todo implement/call parallelization
-                experiment_writer.metadata_writer.set_start_time(datetime.now())
-                imputer.fit(train_missing.detach().cpu().numpy())
-                experiment_writer.metadata_writer.set_end_time(datetime.now())
-                experiment_writer.metadata_writer.save_metadata()
-                print("Ended!\n")
+            # print("reference", reference_np)
+            # print(reference_np.shape)
 
-                test_imputed = imputer.transform(test_missing.detach().cpu().numpy())
-                print("type test imputed", type(test_imputed))
+            for col in range(n_features):
+                observed_rows = np.where(observed_mask_test[:, col])[0]
+                if len(observed_rows) == 0:
+                    continue
+                anchor_row = rng.choice(observed_rows, size=1)
+                # print("test idx row value", reference_np[test_idx[anchor_row], col])
+                test_anchor[anchor_row, col] = reference_np[test_idx[anchor_row], col]
 
-                print("Computing the error (RMSE)...")
-                test_reference_np = test_reference.detach().cpu().numpy()
-                print("Test reference np", test_reference_np)
-                diff = test_reference_np - test_imputed
-                print("Diff", diff)
-                mask = ~test_artificial_missing_mask.detach().cpu().numpy()
-                print("mask", type(mask), mask)
-                diff = diff[mask]
-                print("diff[mask]", diff)
-                print("diff[mask].shape", diff.shape)
-                rmse = np.sqrt(np.mean(diff ** 2))
-                print("RMSE:", rmse)
+            # print("test anchor", test_anchor)
 
-                # Revert the logarithm of base 2
-                x_true_log2p1_inverse = pd.DataFrame(
-                    np.power(2, test_reference_np)-1,
-                )
-                x_pred_log2p1_inverse = pd.DataFrame(
-                    np.power(2, test_imputed)-1,
-                )
-                print("imputed", x_pred_log2p1_inverse)
+            test_imputed = imputer.transform(test_anchor)
+            experiment_writer.metadata_writer.set_end_time(datetime.now())
+            experiment_writer.metadata_writer.save_metadata()
+            print("Ended!\n")
 
-                experiment_writer.evaluation_writer.set_evaluation_dir(
-                    eval_dir=fold_dir
-                )
-                print("Saving files...")
-                experiment_writer.evaluation_writer.save_kfold_cv(
-                    true_matrix=x_true_log2p1_inverse,
-                    pred_matrix=x_pred_log2p1_inverse,
-                    rmse=rmse,
-                )
+            print("Computing the error (RMSE)...")
+            test_reference = reference_np[test_idx, :]
+            test_observed_mask = observed_mask_np[test_idx, :].astype(bool)
+
+            anchor_mask = ~np.isnan(test_anchor)
+            eval_mask = test_observed_mask & ~anchor_mask
+
+            diff = test_reference[eval_mask] - test_imputed[eval_mask]
+            rmse = np.sqrt(np.mean(diff ** 2))
+            print(f"RMSE (fold {fold_id}): {rmse:.4f}")
+
+            # Invert the normalization
+            max_norm = data.max_norm.values
+            min_norm = data.min_norm.values
+            x_hat = test_imputed * (max_norm - min_norm) + min_norm # inverse normalization
+            x_true_test = test_reference * (max_norm - min_norm) + min_norm # inverse normalization
+
+            # Invert the log2(x + 1) from dataset_builder.py: x = 2^y - 1
+            x_true_log2p1_inverse = pd.DataFrame(
+                np.power(2, x_true_test)-1,
+                index=np.array(data.sample_names)[test_idx],
+                columns=data.feature_names,
+            )
+            x_pred_log2p1_inverse = pd.DataFrame(
+                np.power(2, x_hat)-1,
+                index=np.array(data.sample_names)[test_idx],
+                columns=data.feature_names,
+            )
+            print("imputed", x_pred_log2p1_inverse)
+
+            experiment_writer.evaluation_writer.set_evaluation_dir(
+                eval_dir=fold_dir
+            )
+            print("Saving files...")
+            experiment_writer.evaluation_writer.save_kfold_cv(
+                true_matrix=x_true_log2p1_inverse,
+                pred_matrix=x_pred_log2p1_inverse,
+                rmse=rmse,
+            )
+
+            experiment_writer.split_writer.save_fold_splits(
+                fold_id=fold_id,
+                train_idx=train_idx,
+                test_idx=test_idx,
+            )
             
         self.shutdown_parallel()

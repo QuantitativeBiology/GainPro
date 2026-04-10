@@ -65,12 +65,14 @@ class ImputationManager:
         strategy: str,
         idxs_folds: list,
         data: Data,
+        num_folds: int = None,
     ):
         return self.model.evaluate(
             strategy=strategy,
             data=data,
             idxs_folds=idxs_folds,
             experiment_writer=self.experiment_writer,
+            num_folds=num_folds,
         )
 
 
