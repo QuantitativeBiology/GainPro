@@ -3,7 +3,7 @@ import numpy as np
 import pandas as pd
 import torch.nn as nn
 from datetime import datetime
-from sklearn.model_selection import GroupKFold, train_test_split
+from sklearn.model_selection import StratifiedGroupKFold, train_test_split
 
 from utils.data.dataset import Data
 from models.GainPro.gain import Gain
@@ -72,7 +72,7 @@ class Trainer:
 
         loss_D = (loss(fake_Y.float(), mask)).mean()
 
-        print("+++++++ loss discriminator", loss_D)
+        # print("+++++++ loss discriminator", loss_D)
 
         return loss_D
     
@@ -106,9 +106,9 @@ class Trainer:
 
         loss_G = loss_G_entropy + self.alpha * loss_G_mse
 
-        print("------- loss generator", loss_G)
-        print("             loss g entropy", loss_G_entropy)
-        print("             loss g mse", loss_G_mse)
+        # print("------- loss generator", loss_G)
+        # print("             loss g entropy", loss_G_entropy)
+        # print("             loss g mse", loss_G_mse)
 
         return loss_G
     
@@ -177,41 +177,6 @@ class Trainer:
             self.model.train()
 
         return discriminator_loss.detach().clone(), generator_loss.detach().clone(), rmse
-    
-    # def epoch(
-    #     self,
-    #     x,
-    #     x_true,
-    #     Z,
-    #     mask,
-    #     hint,
-    # ) -> tuple[torch.tensor, torch.tensor, float]:
-    #     discriminator_loss = self._update_discriminator(
-    #         x=x,
-    #         mask=mask,
-    #         hint=hint,  
-    #         Z=Z,
-    #     )
-
-    #     generator_loss = self._update_generator(
-    #         x=x,
-    #         mask=mask,
-    #         hint=hint,
-    #         Z=Z,
-    #     )
-
-    #     x_hat = self.generate_sample(
-    #         data=x, 
-    #         mask=mask
-    #     )
-
-    #     mse_loss = nn.MSELoss(reduction="none")
-    #     mse = (
-    #         mse_loss(x_true * mask, x_hat * mask)
-    #     ).mean()
-    #     rmse = np.sqrt(mse.detach().cpu().numpy())
-
-    #     return discriminator_loss.detach().clone(), generator_loss.detach().clone(), rmse
 
     def fit(
         self,
@@ -518,11 +483,12 @@ class Trainer:
         Stratified Group K-Fold cross-validation for evaluating whether GAIN can
         reconstruct a sample it has never seen before.
         """
-        gkf = GroupKFold(n_splits=num_folds)
+        sgkf = StratifiedGroupKFold(n_splits=num_folds)
         groups = data.tissue.cpu().numpy()
 
+        y = groups
         for fold_id, (trainval_idx, test_idx) in enumerate(
-            gkf.split(X=data.reference.cpu().numpy(), groups=groups), start=1
+            sgkf.split(X=data.reference.cpu().numpy(), y=y, groups=groups), start=1
         ):
             print(f"\n\n------------ Fold {fold_id}/{num_folds} ------------\n")
 
