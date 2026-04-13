@@ -36,10 +36,10 @@ class ResultWriter:
                     "fold": fold_id,
                     "sample_id": sample_id,
                     "feature": feat,
-                    "true value": true_values[i, j],
-                    "predicted value": pred_values[i, j],
-                    "observed mask": int(observed_mask[i, j]),
-                    "artificial missing mask": int(artificial_missing_mask[i, j]),
+                    "true_value": true_values[i, j],
+                    "predicted_value": pred_values[i, j],
+                    "observed_mask": int(observed_mask[i, j]),
+                    "artificial_missing_mask": int(artificial_missing_mask[i, j]),
                     "group_id": mapped_gid,
                 })
 
