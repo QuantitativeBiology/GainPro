@@ -1,15 +1,13 @@
 import torch
 import numpy as np
-import pandas as pd
 import torch.nn as nn
 from datetime import datetime
 from sklearn.model_selection import StratifiedGroupKFold, train_test_split
 
-from utils.data.dataset import Data
 from models.GainPro.gain import Gain
 from models.GainPro.metrics import Metrics
 from utils.train_hypers import TrainHypers
-from utils.data.proteomics_scaler import ProteomicsScaler
+from utils.data.dataset import Data, generate_hint
 from utils.writers.experiment_writer import ExperimentWriter
 
 class Trainer:
@@ -18,7 +16,6 @@ class Trainer:
         model: Gain,
         train_hypers: TrainHypers,
     ) -> "Trainer":
-        
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         
         self.model = model
@@ -225,6 +222,7 @@ class Trainer:
                 experiment_writer=experiment_writer,
             )
         elif strategy == "k-fold":
+            print("K-Fold strategy...")
             self.kfold_cv(
                 num_folds=num_folds,
                 idxs_folds=idxs_folds,
@@ -232,42 +230,42 @@ class Trainer:
                 experiment_writer=experiment_writer,
             )
         elif strategy == "group-k-fold":
+            print("Stratified group k-fold strategy...")
             self.group_kfold_cv(
                 num_folds=num_folds,
                 data=data,
                 experiment_writer=experiment_writer,
             )
         else:
-            raise ValueError(f"Invalid cross validation strategy. Available strategies: Hold-out ('hold-out'), K-Fold ('k-fold') and Stratified Group K-Fold ('group-k-fold').")
+            raise ValueError(
+                f"Invalid cross validation strategy."
+                f"Available strategies: Hold-out ('hold-out'), K-Fold ('k-fold') and Stratified Group K-Fold ('group-k-fold')."
+            )
     
     def hold_out_cv(
         self,
         data: Data,
         experiment_writer: ExperimentWriter,
     ) -> None:
-        
-        # print("reference", data.reference)
-        # print("missing", data.missing)
-        # print("observed mask", data.observed_mask)
-        # print("artificial missing mask", data.artificial_missing_mask)
-        
         experiment_writer.metadata_writer.set_out_dir(experiment_writer.evaluation_dir)
         experiment_writer.metadata_writer.set_start_time(datetime.now())
         # train
         for ep in range(1, self.num_epochs+1):
-            print(f"Epoch {ep}/{self.num_epochs} \n")
+            print(f"Epoch {ep}/{self.num_epochs}")
 
             x = data.missing.detach().clone()
             x_true = data.reference.detach().clone()
             observed_mask = data.observed_mask.detach().clone()
             hint = data.hint.detach().clone()
+            Z = torch.rand(x.shape, device=self.device)
 
             discriminator_loss, generator_loss, rmse = self.epoch(
                 x=x,
                 x_true=x_true,
                 mask=observed_mask,
                 hint=hint,
-                epoch=ep,
+                Z=Z,
+                train_mode=True
             )
 
             self.metrics.train_metrics["discriminator_loss"].append(discriminator_loss.item())
@@ -280,29 +278,24 @@ class Trainer:
         experiment_writer.metadata_writer.set_out_dir(out_dir=evaluation_dir)
         experiment_writer.metadata_writer.save_metadata()
 
-        # evaluate (only on artificially masked entries=0)
-        artificial_missing_mask = data.artificial_missing_mask.detach().clone() # only on artificially masked entries
+        # Evaluate (only on artificial masked entries=0)
+        artificial_missing_mask = data.artificial_missing_mask.detach().clone() 
         x_hat = self.generate_sample(
             data=x, 
             mask=artificial_missing_mask
         )
-        mse_loss = nn.MSELoss(reduction="none")
+        mse_loss = nn.MSELoss(reduction="sum")
+        artificial_missing_mask_np = (~artificial_missing_mask).float()
         mse = (
-            mse_loss(x_true * ~artificial_missing_mask, x_hat * ~artificial_missing_mask)
-        ).mean() #todo change [] instead of multiplying
+            (mse_loss(x_true * artificial_missing_mask_np, x_hat * artificial_missing_mask_np) / artificial_missing_mask_np.sum())  # ~artificial missing mask to compare only the masked entries
+        ).mean()
         rmse = np.sqrt(mse.detach().cpu().numpy())
 
         # Invert the normalization
         max_norm = data.max_norm.values
         min_norm = data.min_norm.values
-        x_hat = x_hat.detach().cpu().numpy() * (max_norm - min_norm) + min_norm # inverse normalization
-        x_true = x_true.detach().cpu().numpy() * (max_norm - min_norm) + min_norm # inverse normalization
-
-        # debugging purposes
-        print("Real mean:", x_true.mean(0))
-        print("Fake mean:", x_hat.mean(0))
-        print("Real std:", x_true.std(0))
-        print("Fake std:", x_hat.std(0))
+        x_hat = x_hat.detach().cpu().numpy() * (max_norm - min_norm) + min_norm
+        x_true = x_true.detach().cpu().numpy() * (max_norm - min_norm) + min_norm
 
         # Invert the log2(x + 1) from dataset_builder.py: x = 2^y - 1
         x_hat_log2p1_inverse = np.power(2, x_hat)-1
@@ -310,15 +303,6 @@ class Trainer:
         # Since we filled NANs entries with zeros
         observed_mask_np = observed_mask.detach().cpu().numpy()
         x_true_log2p1_inverse = np.where(observed_mask_np == 0, np.nan, np.power(2, x_true) - 1)
-
-        # print("\n\n\n\n =================== ")
-        # print("true values", x_true_log2p1_inverse)
-        # print("predicted values", x_hat_log2p1_inverse)
-        # print("observed mask", observed_mask)
-        # print("artificial missing mask", artificial_missing_mask)
-        # print("data missing", data.missing)
-        # print("observed mask & artificial missing mask",  torch.logical_and(observed_mask, artificial_missing_mask))
-        # print("\n\n\n\n =================== ")
 
         experiment_writer.result_writer.save_predictions(
             sample_ids=data.sample_names,
@@ -333,10 +317,11 @@ class Trainer:
             out_dir=evaluation_dir,
             rmse=rmse.item(),
         )
+        print("RMSE:", rmse.item())
 
-        self.metrics.test_metrics["discriminator_loss"].append(None)
-        self.metrics.test_metrics["generator_loss"].append(None)
-        self.metrics.test_metrics["rmse"].append(rmse.item())
+        self.metrics.val_metrics["discriminator_loss"].append(None)
+        self.metrics.val_metrics["generator_loss"].append(None)
+        self.metrics.val_metrics["rmse"].append(rmse.item())
 
         experiment_writer.metrics_writer.log_metrics(
             metrics=self.metrics,
@@ -349,14 +334,13 @@ class Trainer:
         data: Data,
         experiment_writer: ExperimentWriter,
     ) -> None:
-
+        
         for fold_id in range(1, num_folds+1):
             print(f"\n\n------------ Fold {fold_id}/{num_folds} ------------\n")
 
             trainval_idx = idxs_folds[fold_id-1]["trainval_idx"]
             test_idx = idxs_folds[fold_id-1]["test_idx"]
 
-            # Create new model
             model = Gain(
                 input_dim=data.missing.shape[1],
                 num_hidden_layers_generator=self.model.num_hidden_layers_generator,
@@ -376,7 +360,7 @@ class Trainer:
             kfold_dir.mkdir(parents=True, exist_ok=True)
             experiment_writer.metadata_writer.set_out_dir(kfold_dir)
             experiment_writer.metadata_writer.set_start_time(datetime.now())
-            # train
+            # Train
             for ep in range(1, self.num_epochs+1):
                 print(f"Epoch {ep}/{self.num_epochs} \n")
 
@@ -384,13 +368,15 @@ class Trainer:
                 x_true_train = reference_train.detach().clone()
                 observed_mask_train = observed_mask_train.detach().clone()
                 hint_train = hint_train.detach().clone()
+                Z_train = torch.rand(x_train.shape, device=self.device)
 
                 train_discriminator_loss, train_generator_loss, train_rmse = self.epoch(
                     x=x_train,
                     x_true=x_true_train,
                     mask=observed_mask_train,
                     hint=hint_train,
-                    epoch=ep,
+                    Z=Z_train,
+                    train_mode=True,
                 )
 
                 self.metrics.train_metrics["discriminator_loss"].append(train_discriminator_loss.item())
@@ -401,13 +387,15 @@ class Trainer:
                 x_true_val = reference_val.detach().clone()
                 observed_mask_val = observed_mask_val.detach().clone()
                 hint_val = hint_val.detach().clone()
+                Z_val = torch.rand(x_val.shape, device=self.device)
 
                 val_discriminator_loss, val_generator_loss, val_rmse = self.epoch(
                     x=x_val,
                     x_true=x_true_val,
                     mask=observed_mask_val,
                     hint=hint_val,
-                    epoch=ep,
+                    Z=Z_val,
+                    train_mode=False,
                 )
 
                 self.metrics.val_metrics["discriminator_loss"].append(val_discriminator_loss.item())
@@ -419,7 +407,7 @@ class Trainer:
             experiment_writer.metadata_writer.save_metadata()
             experiment_writer.metrics_writer.log_metrics(metrics=self.metrics, fold_id=fold_id)
             
-            # evaluate
+            # Evaluate
             x_test = data.missing[test_idx, :]
             x_true_test = data.reference[test_idx, :]
             observed_mask_test = data.observed_mask[test_idx, :]
@@ -512,11 +500,11 @@ class Trainer:
 
             x_train_ref = data.reference[train_idx, :]
             observed_mask_train = data.observed_mask[train_idx, :]
-            hint_train = data.hint[train_idx, :]
+            # hint_train = data.hint[train_idx, :]
 
             x_val_ref = data.reference[val_idx, :]
             observed_mask_val = data.observed_mask[val_idx, :]
-            hint_val = data.hint[val_idx, :]
+            # hint_val = data.hint[val_idx, :]
 
             kfold_dir = experiment_writer.evaluation_dir / "groupkfold"
             kfold_dir.mkdir(parents=True, exist_ok=True)
@@ -525,11 +513,18 @@ class Trainer:
 
             num_train_samples, num_proteins = x_train_ref.shape[0], x_train_ref.shape[1]
             num_val_samples = x_val_ref.shape[0]
-            Z_train = torch.rand((num_train_samples, num_proteins), device=self.device)
-            Z_val = torch.rand((num_val_samples, num_proteins), device=self.device)
 
             for ep in range(1, self.num_epochs + 1):
                 print(f"Epoch {ep}/{self.num_epochs}")
+
+                Z_train = torch.rand((num_train_samples, num_proteins), device=self.device)
+                Z_val = torch.rand((num_val_samples, num_proteins), device=self.device)
+
+                hint = generate_hint(data.observed_mask.detach().cpu().numpy(), data.hint_rate)
+                hint = torch.from_numpy(hint).to(self.device)
+
+                hint_train = hint[train_idx, :]
+                hint_val = hint[val_idx, :]
 
                 train_discriminator_loss, train_generator_loss, train_rmse = self.epoch(
                     x=x_train_ref.detach().clone(),
@@ -566,18 +561,16 @@ class Trainer:
             x_true_test = data.reference[test_idx, :]
             observed_mask_test = data.observed_mask[test_idx, :]
 
-            fully_masked_input = torch.zeros_like(x_true_test)
-            all_missing_mask = torch.zeros_like(observed_mask_test)
-            observed_mask_test_bool = observed_mask_test.bool()
-
             with torch.no_grad():
                 x_hat = self.generate_sample(
-                    data=fully_masked_input,
-                    mask=all_missing_mask,
+                    data=x_true_test,         # real observed values
+                    mask=observed_mask_test   # real observed mask
                 )
+                print(f"X hat {torch.mean(x_hat, dim=0)}, {torch.std(x_hat, dim=0)} (mean ± std)")
+                print(f"X true {torch.mean(x_true_test, dim=0)}, {torch.std(x_true_test, dim=0)} (mean ± std)")
                 mse = nn.MSELoss(reduction="none")(  #todo why none and not mean here directly?
-                    x_true_test[observed_mask_test_bool], 
-                    x_hat[observed_mask_test_bool]
+                    x_true_test[observed_mask_test], 
+                    x_hat[observed_mask_test]
                 ).mean()
                 rmse = np.sqrt(mse.detach().cpu().numpy())
 
@@ -596,6 +589,9 @@ class Trainer:
                 np.nan,
                 np.power(2, x_true_np) - 1,
             )
+
+            print("normalized and transformed x_hat mean:", np.mean(x_hat_original, axis=0))
+            print("normalized and transformed x_true mean:", np.nanmean(x_true_original, axis=0))
 
             experiment_writer.result_writer.save_predictions(
                 fold_id=fold_id,
