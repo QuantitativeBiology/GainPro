@@ -1,11 +1,9 @@
-n_runs: 1 # number of runs for each missingness level
+n_runs: 1
 initial_seed: 42
 
 validation_strategy:
-  # - name: "hold-out"
-  #   missingness_levels: [0.10, 0.20, 0.30, 0.40]
   - name: "group-k-fold"
-    num_folds: 5
+    num_folds: 2
 
 models:
   - name: protogain

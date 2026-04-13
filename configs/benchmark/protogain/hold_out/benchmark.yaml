@@ -1,0 +1,11 @@
+n_runs: 1
+initial_seed: 42
+
+validation_strategy:
+  - name: "hold-out"
+    missingness_levels: [0.10]
+
+models:
+  - name: protogain
+    model_config: "../configs/model/protogain.yaml"
+    train_config: "../configs/train/train.yaml"
