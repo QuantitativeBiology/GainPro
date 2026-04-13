@@ -217,7 +217,7 @@ class Trainer:
         """
         if strategy == "hold-out":
             print("Hold-out strategy...")
-            self.hold_out_cv(
+            self.holdout_cv(
                 data=data,
                 experiment_writer=experiment_writer,
             )
@@ -282,7 +282,7 @@ class Trainer:
         artificial_missing_mask = data.artificial_missing_mask.detach().clone() 
         x_hat = self.generate_sample(
             data=x, 
-            mask=artificial_missing_mask
+            mask=observed_mask
         )
         mse_loss = nn.MSELoss(reduction="sum")
         artificial_missing_mask_np = (~artificial_missing_mask).float()
