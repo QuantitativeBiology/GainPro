@@ -242,7 +242,7 @@ class Trainer:
                 f"Available strategies: Hold-out ('hold-out'), K-Fold ('k-fold') and Stratified Group K-Fold ('group-k-fold')."
             )
     
-    def hold_out_cv(
+    def holdout_cv(
         self,
         data: Data,
         experiment_writer: ExperimentWriter,
@@ -288,7 +288,7 @@ class Trainer:
         artificial_missing_mask_np = (~artificial_missing_mask).float()
         mse = (
             (mse_loss(x_true * artificial_missing_mask_np, x_hat * artificial_missing_mask_np) / artificial_missing_mask_np.sum())  # ~artificial missing mask to compare only the masked entries
-        ).mean()
+        )
         rmse = np.sqrt(mse.detach().cpu().numpy())
 
         # Invert the normalization
