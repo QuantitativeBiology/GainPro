@@ -2,7 +2,7 @@ n_runs: 1
 initial_seed: 42
 
 validation_strategy:
-  - name: "hold-out"
+  - name: "holdout"
     missingness_levels: [0.10]
 
 models:
