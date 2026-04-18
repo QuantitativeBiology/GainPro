@@ -1,3 +1,4 @@
+import torch
 import shutil
 import numpy as np
 import pandas as pd
@@ -57,6 +58,8 @@ class MissForestRImputationModel:
             """)
             self.n_tree = missforest_hypers.n_tree
             self.max_iter = missforest_hypers.max_iter
+            print("Number of trees:", self.n_tree)
+            print("Maximum iterations:", self.max_iter)
 
         except Exception as e:  
             print("The 'missForest' R package is not installed. Please install it in your R environment.")
@@ -96,8 +99,8 @@ class MissForestRImputationModel:
         res = self.missforest.missForest(
             xmis=r_missing_df,
             xtrue=r_reference_df,
-            ntree=100,
-            maxiter=10,
+            ntree=self.n_tree,
+            maxiter=self.max_iter,
             parallelize=ro.StrVector(["forests"]),
             verbose=True,
         )
@@ -136,12 +139,12 @@ class MissForestRImputationModel:
     ) -> None:
         """
         Args:
-            - strategy (str): Cross validation strategies. Available: Hold-out ("hold-out") and K-Fold ("k-fold").
+            - strategy (str): Cross validation strategies. Available: Holdout ("holdout") and K-Fold ("k-fold").
         """
         print("Evaluating missForest...")
         
-        if strategy == "hold-out":
-            self.hold_out_cv(
+        if strategy == "holdout":
+            self.holdout_cv(
                 data=data,
                 experiment_writer=experiment_writer
             )
@@ -152,9 +155,12 @@ class MissForestRImputationModel:
                 num_folds=num_folds,
             )
         else:
-            raise ValueError(f"Invalid cross validation strategy. Available strategies: Hold-out ('hold-out') and K-Fold ('k-fold').")
+            raise ValueError(f"Invalid cross validation strategy. Available strategies: Holdout ('holdout') and K-Fold ('k-fold').")
     
-    def hold_out_cv(
+    
+
+
+    def holdout_cv(
         self,
         data: Data,
         experiment_writer: ExperimentWriter,
@@ -169,54 +175,51 @@ class MissForestRImputationModel:
                 missing_df
             )
 
-        hold_out_dir = experiment_writer.evaluation_dir / "hold-out"
+        hold_out_dir = experiment_writer.evaluation_dir / "holdout"
         hold_out_dir.mkdir(parents=True, exist_ok=True)
         experiment_writer.metadata_writer.set_out_dir(hold_out_dir)
-        print("started missforest calculation")
+        print("Started missforest calculation")
         experiment_writer.metadata_writer.set_start_time(datetime.now())
         res = self.missforest.missForest(
             xmis=r_missing_df,
-            ntree=1,
-            maxiter=1,
+            ntree=self.n_tree,
+            maxiter=self.max_iter,
             parallelize=ro.StrVector(["forests"]),
             verbose=True,
         )
         experiment_writer.metadata_writer.set_end_time(datetime.now())
         experiment_writer.metadata_writer.save_metadata()
-        print("ended missforest calculation")
+        print("Ended missforest calculation")
 
         with localconverter(ro.default_converter + pandas2ri.converter):
             imputed = ro.conversion.rpy2py(res.rx2("ximp"))
 
-        # imputed_df = pd.DataFrame(
-        #     imputed,
-        #     # index=data.missing.index,
-        #     # columns=data.missing.columns
-        # )
+        print("First imputed\n", imputed)
+        print("First imputed to numpy\n", imputed.to_numpy())
 
-        # compute RMSE on induced missing entries
-        mask = ~np.isnan(data.reference.detach().cpu().numpy().astype("float64")) & np.isnan(data.missing.detach().cpu().numpy().astype("float64"))
-        # x_true = pd.DataFrame(data.reference.cpu()) #log2(x+1) transformed
-        # print("x true", x_true)
-        # x_pred = imputed_df
+        # Compute RMSE on induced missing entries
+        artificial_missing_mask = ~data.artificial_missing_mask.detach().cpu().numpy()
+        print("mask", artificial_missing_mask)
 
-        print("Computing rmse...")
-        # rmse = np.sqrt(np.mean((x_true[mask] - x_pred[mask]) ** 2))
+        print("Computing RMSE...")
+        x_true = data.reference
+        print("X true\n", x_true)
+        x_pred = torch.tensor(imputed.to_numpy(), device=x_true.device)
+        print("First imputed tensor\n", x_pred)
+        rmse = torch.sqrt(torch.mean((x_true[artificial_missing_mask] - x_pred[artificial_missing_mask]) ** 2))
+        rmse = rmse.item()
+        print(f"RMSE: {rmse:.4f}")
+
         x_true_np = data.reference.detach().cpu().numpy()
-        x_pred_np = imputed
+        x_pred_np = imputed.to_numpy()
 
-        diff = x_true_np - x_pred_np
-        diff = diff[mask]
-        rmse = np.sqrt(np.mean(diff ** 2))
-        print("rmse:", rmse)
-
-        # Invert the normalization
+        # Invert normalization
         max_norm = data.max_norm.values
         min_norm = data.min_norm.values
-        x_pred = x_pred_np * (max_norm - min_norm) + min_norm # inverse normalization
-        x_true_test = x_true_np * (max_norm - min_norm) + min_norm # inverse normalization
+        x_pred = x_pred_np * (max_norm - min_norm) + min_norm
+        x_true_test = x_true_np * (max_norm - min_norm) + min_norm
 
-        # Invert the log2(x + 1) from dataset_builder.py: x = 2^y - 1
+        # Invert log2(x + 1) from dataset_builder.py: x = 2^y - 1
         x_true_log2p1_inverse = pd.DataFrame(
             np.power(2, x_true_test)-1,
             index=np.array(data.sample_names),
@@ -227,16 +230,35 @@ class MissForestRImputationModel:
             index=np.array(data.sample_names),
             columns=data.feature_names,
         )
-        print("imputed", x_pred_log2p1_inverse)
+        print("Imputed\n", x_pred_log2p1_inverse)
         
         experiment_writer.evaluation_writer.set_evaluation_dir(
             eval_dir=hold_out_dir
         )
-        print("Saving files...")
-        experiment_writer.evaluation_writer.save_hold_out_cv(
-            mask=pd.DataFrame(mask),
+
+        observed_mask = pd.DataFrame(
+            data.observed_mask.detach().cpu().numpy(),
+            index=np.array(data.sample_names),
+            columns=data.feature_names,
+        )
+
+        artificial_missing_mask = pd.DataFrame(
+            data.artificial_missing_mask.detach().cpu().numpy(),
+            index=np.array(data.sample_names),
+            columns=data.feature_names,
+        )
+
+        tissue_mask = pd.DataFrame(
+            data.tissue.detach().cpu().numpy(),
+            index=np.array(data.sample_names),
+        )
+
+        experiment_writer.evaluation_writer.save_missforest_predictions(
             true_matrix=x_true_log2p1_inverse,
+            observed_mask=observed_mask,
             pred_matrix=x_pred_log2p1_inverse,
+            artificial_missing_mask=artificial_missing_mask,
+            tissue_matrix=tissue_mask,
             rmse=rmse,
         )
 
@@ -271,8 +293,8 @@ class MissForestRImputationModel:
 
             print("Fitting missForest...")
             imputer = MissForest(
-                max_iter=self.n_tree,
-                n_estimators=self.max_iter,
+                n_estimators=self.n_tree,
+                max_iter=self.max_iter,
                 max_features=None,
                 criterion=("squared_error")  
             )
@@ -280,7 +302,7 @@ class MissForestRImputationModel:
             imputer.fit(train_reference)
 
             # Test each sample as completely unobserved
-            n_samples, n_features = reference_np[test_idx, :].shape
+            _, n_features = reference_np[test_idx, :].shape
             observed_mask_test = observed_mask_np[test_idx, :]
 
             n_test, n_features = reference_np[test_idx, :].shape
@@ -340,9 +362,34 @@ class MissForestRImputationModel:
                 eval_dir=fold_dir
             )
             print("Saving files...")
-            experiment_writer.evaluation_writer.save_kfold_cv(
+
+            test_idx_np = test_idx.cpu().numpy() if hasattr(test_idx, 'cpu') else np.array(test_idx)
+
+            observed_mask = pd.DataFrame(
+                data.observed_mask[test_idx, :].detach().cpu().numpy(),
+                index=np.array(data.sample_names)[test_idx_np],
+                columns=data.feature_names,
+            )
+
+            artificial_missing_mask = pd.DataFrame(
+                data.artificial_missing_mask[test_idx, :].detach().cpu().numpy(),
+                index=np.array(data.sample_names)[test_idx_np],
+                columns=data.feature_names,
+            )
+
+            tissue_mask = pd.DataFrame(
+                data.tissue[test_idx].detach().cpu().numpy(),
+                index=np.array(data.sample_names)[test_idx_np],
+                columns=["tissue"]
+            )
+
+            experiment_writer.evaluation_writer.save_missforest_predictions(
                 true_matrix=x_true_log2p1_inverse,
+                observed_mask=observed_mask,
                 pred_matrix=x_pred_log2p1_inverse,
+                artificial_missing_mask=artificial_missing_mask,
+                tissue_matrix=tissue_mask,
+                tissue_mapping=data.tissue_mapping,
                 rmse=rmse,
             )
 
