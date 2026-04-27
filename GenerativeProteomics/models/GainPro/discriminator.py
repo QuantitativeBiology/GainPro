@@ -25,7 +25,6 @@ class Discriminator(nn.Module):
             self.layers.append(nn.Linear(self.input_dim, self.input_dim))
             self.layers.append(nn.LeakyReLU())
         
-        # self.layers.append(nn.Linear(self.input_dim, self.input_dim))
         self.layers.append(nn.Sigmoid())
     
     def forward(
