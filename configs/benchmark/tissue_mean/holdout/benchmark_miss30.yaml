@@ -1,0 +1,9 @@
+n_runs: 1 # number of runs
+initial_seed: 42
+
+validation_strategy: 
+  - name: "holdout"
+    missingness_levels: [0.30]
+
+models:
+  - name: tissue_mean

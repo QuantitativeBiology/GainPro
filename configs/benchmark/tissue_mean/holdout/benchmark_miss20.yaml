@@ -3,7 +3,7 @@ initial_seed: 42
 
 validation_strategy: 
   - name: "holdout"
-    missingness_levels: [0.10]
+    missingness_levels: [0.20]
 
 models:
-  - name: mean
+  - name: tissue_mean

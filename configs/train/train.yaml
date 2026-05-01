@@ -1,4 +1,4 @@
-num_epochs: 2000
+num_epochs: 1
 
 batch_size: 32
 
@@ -8,4 +8,4 @@ generator:
 discriminator:
   lr: 1.0e-5
 
-alpha: 10
+alpha: 10 

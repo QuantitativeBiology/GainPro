@@ -1,0 +1,13 @@
+n_runs: 1
+initial_seed: 42
+
+validation_strategy:
+  - name: "groupkfold"
+    num_folds: 2
+    miss_rate: 0.10
+    holdout_tissues: ["Haematopoietic and Lymphoid", "Lung"]
+
+models:
+  - name: protogain
+    model_config: "../configs/model/protogain.yaml"
+    train_config: "../configs/train/train.yaml"

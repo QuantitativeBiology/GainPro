@@ -3,5 +3,5 @@ dataset:
   path: "../data/processed/PXD030304/PXD030304_no_control_multi_peptide_50pct_tissue/PXD030304_no_control_multi_peptide_50pct_tissue.csv"
   replace_zeros: false
   drop_top_n_missing: 0
-  miss_rate: 0.0
+  miss_rate: 0.1
   hint_rate: 0.5

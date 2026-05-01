@@ -2,8 +2,8 @@ n_runs: 1
 initial_seed: 42
 
 validation_strategy:
-  - name: "group-k-fold"
-    num_folds: 2
+  - name: "holdout"
+    missingness_levels: [0.20]
 
 models:
   - name: protogain

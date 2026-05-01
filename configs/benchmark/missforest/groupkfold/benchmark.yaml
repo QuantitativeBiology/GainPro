@@ -1,0 +1,12 @@
+n_runs: 1
+initial_seed: 42
+
+validation_strategy:
+  - name: "groupkfold"
+    num_folds: 2
+    miss_rate: 0.10
+    holdout_tissues: ["Lung"]
+
+models:
+  - name: missForest
+    model_config: "../configs/model/missforest.yaml"
