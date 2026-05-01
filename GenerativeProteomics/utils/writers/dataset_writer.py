@@ -51,8 +51,8 @@ class DatasetWriter:
             f"{out_dir}/artificial_missing_mask.csv"
         )
         # todo save cell line and/or condition and/or tissue
-        # cls._save_df(data.cell_line, f"{out_dir}/cell_line.csv")
-        # cls._save_df(data.cell_line_mapping, f"{out_dir}/cell_line_mapping.csv")
+        # cls._save_df(data.tissue, f"{out_dir}/tissue.csv")
+        # cls._save_df(data.tissue_mapping, f"{out_dir}/tissue_mapping.csv")
     
     def save_data_metadata(
         cls,

@@ -1,3 +1,4 @@
+import numpy as np
 import pandas as pd
 from pathlib import Path
 
@@ -12,20 +13,22 @@ class ResultWriter:
     
     def save_predictions(
         self,
-        sample_ids,
-        feature_names,
-        true_values,
-        pred_values,
-        observed_mask,
-        artificial_missing_mask,
+        sample_ids: list,
+        feature_names: list,
+        true_values: np.ndarray,
+        pred_values: np.ndarray,
+        observed_mask: np.ndarray,
+        artificial_missing_mask: np.ndarray,
         fold_id: int=None,
-        group_mapping: dict = None,
-        group_ids = None
+        group_mapping: dict=None,
+        group_ids=None
     ) -> None:
         safe_group_mapping = group_mapping or {}
         records = []
+        assert group_ids is None or len(group_ids) == len(sample_ids), \
+            f"group_ids ({len(group_ids)}) != sample_ids ({len(sample_ids)})"
         for i, sample_id in enumerate(sample_ids):
-            for j, feat in enumerate(feature_names):
+            for j, feature in enumerate(feature_names):
                 if group_ids is None:
                     mapped_gid = None
                 else:
@@ -35,7 +38,7 @@ class ResultWriter:
                 records.append({
                     "fold": fold_id,
                     "sample_id": sample_id,
-                    "feature": feat,
+                    "feature": feature,
                     "true_value": true_values[i, j],
                     "predicted_value": pred_values[i, j],
                     "observed_mask": int(observed_mask[i, j]),

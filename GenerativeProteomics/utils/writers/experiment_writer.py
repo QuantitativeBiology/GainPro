@@ -4,7 +4,6 @@ from utils.writers.split_writer import SplitWriter
 from utils.writers.results_writer import ResultWriter
 from utils.writers.metrics_writer import MetricsWriter
 from utils.writers.metadata_writer import MetadataWriter
-from utils.writers.evaluation_writer import EvaluationWriter
 
 class ExperimentWriter:
     def __init__(
@@ -35,7 +34,6 @@ class ExperimentWriter:
             dir.mkdir(parents=True, exist_ok=True)
         
         self.result_writer = ResultWriter(preds_dir=self.preds_dir, evaluation_dir=self.evaluation_dir)
-        self.evaluation_writer = EvaluationWriter(self.evaluation_dir)
         self.metrics_writer = MetricsWriter(self.metrics_dir)
         self.metadata_writer = MetadataWriter()
         self.split_writer = SplitWriter(self.folds_dir)
