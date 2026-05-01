@@ -14,16 +14,18 @@ class Data:
         min_norm: pd.DataFrame,
         max_norm: pd.DataFrame,
         # col_scalers: dict,
+        tissue: pd.DataFrame = None,
+        tissue_mapping: dict = None,
         cell_line: pd.DataFrame = None,
-        cell_line_mapping: dict = None,
+        cell_line_mapping: dict = None
     ) -> "Data":
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
         self.sample_names = list(reference.index)
         self.feature_names = list(reference.columns)
         
-        if cell_line_mapping is not None:
-            self.cell_line_mapping = cell_line_mapping
+        if tissue_mapping is not None:
+            self.tissue_mapping = tissue_mapping
 
         self.missing = torch.from_numpy(missing.values).to(self.device)
         self.reference = torch.from_numpy(reference.values).to(self.device)
@@ -31,6 +33,8 @@ class Data:
         self.artificial_missing_mask = torch.from_numpy(artificial_missing_mask.values).to(self.device) # on artificially masked values
         self.cell_line = torch.from_numpy(cell_line.values.copy()).to(self.device)
         self.cell_line_mapping = cell_line_mapping
+        self.tissue = torch.from_numpy(tissue.values.copy()).to(self.device)
+        self.tissue_mapping = tissue_mapping
 
         self.min_norm = min_norm
         self.max_norm = max_norm
@@ -41,13 +45,6 @@ class Data:
 
         hint = generate_hint(observed_mask, self.hint_rate)
         self.hint = torch.from_numpy(hint.values).to(self.device)
-
-        #todo scale dataset
-        # self.dataset_df = dataset
-        # dataset = np.where(observed_mask, dataset, 0.0)
-        # self.scaler = StandardScaler()
-        # dataset_scaled = self.scaler.fit_transform(dataset)
-        # dataset_scaled = np.where(observed_mask, dataset_scaled, 0.0)
 
 def generate_hint(observed_mask, hint_rate):
     hint_mask = generate_mask(observed_mask, 1 - hint_rate)
