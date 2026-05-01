@@ -31,7 +31,7 @@ class GroupKFoldStrategy(EvaluationStrategy):
         Returns:
             dict: Evaluation results with aggregated metrics
         """
-        groupkfold_dir = experiment_writer.evaluation_dir / "groupkfold"
+        groupkfold_dir = experiment_writer.preds_dir / "groupkfold"
         groupkfold_dir.mkdir(parents=True, exist_ok=True)
         experiment_writer.metadata_writer.set_out_dir(groupkfold_dir)
 
@@ -137,6 +137,7 @@ class GroupKFoldStrategy(EvaluationStrategy):
                 np.power(2, x_true_test) - 1
             )
             
+            experiment_writer.result_writer.set_prediction_dir(prediction_dir=fold_dir)
             experiment_writer.result_writer.save_predictions(
                 fold_id=fold_id,
                 sample_ids=np.array(data.sample_names)[test_idx],

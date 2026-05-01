@@ -5,11 +5,15 @@ from pathlib import Path
 class ResultWriter:
     def __init__(
         self,
-        preds_dir: Path,
-        evaluation_dir: Path,
+        prediction_dir: Path,
     ) -> "ResultWriter":
-        self.evaluation_dir = evaluation_dir
-        self.preds_dir = preds_dir 
+        self.prediction_dir = prediction_dir
+
+    def set_prediction_dir(
+        self,
+        prediction_dir: Path,
+    ) -> None:
+        self.prediction_dir = prediction_dir
     
     def save_predictions(
         self,
@@ -48,12 +52,12 @@ class ResultWriter:
 
         df = pd.DataFrame(records)
         if fold_id is not None:
-            fold_dir = self.preds_dir / f"fold_{fold_id}"
+            fold_dir = self.prediction_dir / f"fold_{fold_id}"
             fold_dir.mkdir(parents=True, exist_ok=True)
             df.to_csv(fold_dir / "predictions.csv", index=False)
         else:
             df = df.drop(columns=["fold"])
-            df.to_csv(self.preds_dir / "predictions.csv", index=False)
+            df.to_csv(self.prediction_dir / "predictions.csv", index=False)
 
     def save_test_rmse(
         self,
