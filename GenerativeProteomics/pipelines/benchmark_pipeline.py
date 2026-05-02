@@ -84,10 +84,10 @@ def create_imputer_factory(
         return lambda input_dim: MissForestRImputer(missforest_hypers=missforest_hypers)
 
     if name == "global_mean":
-        return GlobalMeanImputer
+        return lambda input_dim: GlobalMeanImputer()
 
     if name == "tissue_mean":
-        return TissueMeanImputer
+        return lambda input_dim: TissueMeanImputer()
 
     if name == "mice":
         raise NotImplementedError("MICE imputer is not yet implemented.")
@@ -136,7 +136,11 @@ def run_holdout(
                 )
             else:
                 imputer_factory = create_imputer_factory(model)
-            evaluator.evaluate(imputer_factory=imputer_factory, data=data)
+            evaluator.evaluate(
+                imputer_factory=imputer_factory, 
+                data=data,
+                x_tissue=data.tissue.detach().cpu(),
+            )
 
 
 def run_groupkfold(

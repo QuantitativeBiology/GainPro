@@ -30,12 +30,13 @@ class HoldoutStrategy(EvaluationStrategy):
         mask_eval = (observed_mask == True) & (artificial_mask == False)
         mask_eval_tensor = torch.tensor(mask_eval, device=data.device)
         
-        x_train_tensor = data.reference.detach().cpu()
-        x_train = x_train_tensor.numpy()
+        x_train_tensor = data.reference.detach()
+        x_train = x_train_tensor.cpu().numpy()
         x_true = data.reference.detach().cpu().numpy()
         x_true = np.nan_to_num(x_true, nan=0)
-        x_missing_tensor = data.missing.detach().cpu()
-        x_missing = x_missing_tensor.numpy()
+        x_missing_tensor = data.missing.detach()
+        x_missing = x_missing_tensor.cpu().numpy()
+        x_missing_tissue = data.tissue.detach().cpu().numpy()
         
         input_dim = data.reference.shape[1]
         imputer = imputer_factory(input_dim)
@@ -53,6 +54,15 @@ class HoldoutStrategy(EvaluationStrategy):
             imputer.train(x_missing)
             x_pred = imputer.impute(
                 x_missing=x_missing,
+            )
+        elif imputer.__class__.__name__ == "TissueMeanImputer":
+            imputer.train(
+                x_missing,
+                x_tissue=x_missing_tissue,
+            )
+            x_pred = imputer.impute(
+                x_missing=x_missing,
+                x_tissue=x_missing_tissue,
             )
         else:
             imputer.train(
