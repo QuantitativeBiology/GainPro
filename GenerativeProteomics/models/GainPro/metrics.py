@@ -13,6 +13,8 @@ class Metrics:
     def init_epoch(self) -> dict[str, list]:
         return {
             "generator_loss": [],
+            "generator_rmse": [],
+            "generator_entropy": [],
             "discriminator_loss": [],
             "rmse": [],
         }

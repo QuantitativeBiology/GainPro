@@ -18,6 +18,8 @@ class MetricsWriter:
         
         METRIC_KEYS = [
             "generator_loss",
+            "generator_rmse",
+            "generator_entropy",
             "discriminator_loss",
             "rmse",
         ]
