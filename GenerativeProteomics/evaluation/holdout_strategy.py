@@ -39,16 +39,21 @@ class HoldoutStrategy(EvaluationStrategy):
         x_missing_tissue = data.tissue.detach().cpu().numpy()
         
         input_dim = data.reference.shape[1]
-        imputer = imputer_factory(input_dim)
+        tissue_dim = len(data.tissue_mapping)
+        imputer = imputer_factory(input_dim, tissue_dim)
         experiment_writer.metadata_writer.set_start_time(datetime.now())
         if imputer.__class__.__name__ == "GainImputer":
             imputer.train(
                 x_train=x_train_tensor, 
                 observed_mask=mask_train_tensor,
+                tissue_ids=data.tissue,
+                num_tissues=len(data.tissue_mapping)
             )
             x_pred = imputer.impute(
                 x_missing=x_missing_tensor, 
-                mask=mask_eval_tensor
+                mask=mask_eval_tensor,
+                tissue_ids=data.tissue,
+                num_tissues=len(data.tissue_mapping)
             )
         elif imputer.__class__.__name__ == "MissForestRImputer":
             imputer.train(x_missing)
@@ -86,7 +91,7 @@ class HoldoutStrategy(EvaluationStrategy):
         x_true_log2p1_inverse = np.where(
             observed_mask == 0, 
             np.nan, 
-            np.power(2, x_true) - 1
+            x_true_log2p1_inverse,
         )
         
         experiment_writer.result_writer.save_predictions(
