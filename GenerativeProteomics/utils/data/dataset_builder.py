@@ -3,7 +3,6 @@ import errno
 import numpy as np
 import pandas as pd
 from pathlib import Path
-from sklearn.preprocessing import StandardScaler
 
 from utils.data.dataset import Data
 from utils.data.helper import (
@@ -15,139 +14,86 @@ from utils.data.helper import (
     compute_evaluation_mask,
     induce_missing, 
     compute_missing_rate,
-    replace_zeros_with_nans,
-    drop_top_n_missing_proteins,
-    drop_proteins_with_missingness_threshold,
-    drop_all_missing_features_and_samples,
 )
 
 class DatasetBuilder:
     def __init__(
         self, 
-        cfg: dict,
-        miss_rate: float=None,
-        hint_rate: float=None,
+        dataset_path: Path,
+        miss_rate: float=0.0,
     ) -> "DatasetBuilder":
-        self.cfg = cfg
-        self.dataset_path = Path(self.cfg["dataset"]["path"])
-        self.dataset_name = self.dataset_path.stem
-        
-        if miss_rate is None:
-            self.miss_rate = self.cfg["dataset"]["miss_rate"]
-        else:
-            self.miss_rate = miss_rate
-
-        print("miss rate in dataset builder", self.miss_rate)
-        
-        if hint_rate is None:
-            self.hint_rate = self.cfg["dataset"]["hint_rate"]
-        else:
-            self.hint_rate = hint_rate
-
-        if not self.dataset_path.exists():
+        if not dataset_path.exists():
             raise FileNotFoundError(errno.ENOENT, os.strerror(errno.ENOENT), self.dataset_path.name)
+        self.dataset_path = dataset_path
+        self.dataset_name = self.dataset_path.stem
 
-        self.df = self._load()
+        self.load_dataset()
+        self.clean()
+        self.log_transform()
 
-        if "condition" in self.df.columns:
-            cat = self.df["condition"].astype("category")
-            self.cell_line = cat.cat.codes
-            self.condition_mapping = dict(enumerate(cat.cat.categories))
-            self.df = self.df.drop(columns=["condition"])
+        self.reference = None
+        self.missing = None
+        self.observed_mask = None
+        self.artificial_missing_mask = None
 
+        self.miss_rate = miss_rate
+        self.original_missingness = None
+        self.current_missingness = None
+
+    def load_dataset(self) -> None:
+        if self.dataset_path.suffix == ".csv":
+            self.df = load_csv(self.dataset_path)
+        elif self.dataset_path.suffix == ".h5ad":
+            self.df = load_anndata(self.dataset_path)
+        elif self.dataset_path.suffix == ".tsv":
+            self.df = load_tsv_with_condition(self.dataset_path)
+        else:
+            raise ValueError("Invalid file format. Valid formats: csv, tsv and h5ad.") 
+
+    def get_dataset_dir(self) -> Path:
+        return self.dataset_path.parent
+    
+    def clean(self) -> None:
         if "Cell_line" in self.df.columns:
-            cat = self.df["Cell_line"].astype("category")
+            cat = self.df["tissue"].astype("category")
             self.cell_line = cat.cat.codes
-            self.condition_mapping = dict(enumerate(cat.cat.categories))
+            self.cell_line_mapping = dict(enumerate(cat.cat.categories))
             self.df = self.df.drop(columns=["Cell_line"])
 
-        if "tissue" in self.df.columns: #todo especificar no readme qual o formato dos datasets esperado
+        if "tissue" in self.df.columns:
             cat = self.df["tissue"].astype("category")
             self.tissue = cat.cat.codes
             self.tissue_mapping = dict(enumerate(cat.cat.categories))
             self.df = self.df.drop(columns=["tissue"])
 
-        self._clean()
-        self._log_transform()
-
-        self.reference = None
-        self.missing = None
-        self.mask = None
-
-        # missingness metadata
-        self.original_missingness = None
-        self.current_missingness = None
-
-    def _load(self) -> pd.DataFrame:
-        if self.dataset_path.suffix == ".csv":
-            df = load_csv(self.dataset_path)
-        elif self.dataset_path.suffix == ".h5ad":
-            df = load_anndata(self.dataset_path)
-        elif self.dataset_path.suffix == ".tsv":
-            df = load_tsv_with_condition(self.dataset_path)
-        else:
-            raise ValueError("Invalid file format.") 
-        return df
-
-    def _clean(self) -> pd.DataFrame:
-        if self.cfg["dataset"]["replace_zeros"]:
-            self.df = replace_zeros_with_nans(self.df)
-        self.df = drop_all_missing_features_and_samples(self.df)
-        if self.cfg["dataset"]["drop_top_n_missing"] != 0:
-            self.df = drop_top_n_missing_proteins(self.df, self.cfg["dataset"]["drop_top_n_missing"])
-
-    def _log_transform(self) -> None:
+    def log_transform(self) -> None:
         values = self.df.values.astype(float)
         values_transformed = np.log2(values + 1)
-
         self.df = pd.DataFrame(
             data=values_transformed,
             index=self.df.index,
             columns=self.df.columns
         )
 
-    def get_dataset_dir(self) -> Path:
-        return self.dataset_path.parent
-
     def build(
         self, 
         fill_zeros: bool,
         seed: int=42,
     ) -> Data:
-
         self.observed_mask = compute_observed_mask(self.df)
 
-        # - Normalize proteins (columns) between [0,1] -
-        # observed mask due to the nans
+        # - Normalize proteins between [0,1] -
         min_norm = self.df[self.observed_mask].min(axis=0) # min protein value
         max_norm = self.df[self.observed_mask].max(axis=0) # max protein value
         X_norm = (self.df[self.observed_mask] - min_norm) / (max_norm - min_norm)
 
-        # todo test with standard scaler
-        # scalers = {}
-        # x_scaled = pd.DataFrame(index=self.df.index, columns=self.df.columns, dtype=float)
-        # for col in self.df.columns:
-        #     observed = self.df[col][self.observed_mask[col] == 1].values.reshape(-1, 1)
-        #     scaler = StandardScaler()
-        #     scaler.fit(observed)
-        #     scalers[col] = scaler
-        #     # transform all values
-        #     x_scaled[col] = scaler.transform(self.df[col])
-
-        # self.reference = x_scaled
-
         self.reference = X_norm
-        self.missing = induce_missing(df=self.df, seed=seed, miss_rate=self.miss_rate)
+        self.missing = induce_missing(df=self.reference, seed=seed, miss_rate=self.miss_rate, restrict_to_observed=False)
 
-        print("Dataset shape:", self.reference.shape)
-
-        if self.missing is None: # all missing entries
-            return None
-
-        # save missingness metadata
         self.original_missingness = compute_missing_rate(self.df)
         self.current_missingness = compute_missing_rate(self.missing)
 
+        print("Dataset shape:", self.reference.shape)
         print(f"Original missing rate: {self.original_missingness:.2%}")
         print(f"Current missing rate: {self.current_missingness:.2%}")
         print("\n")
@@ -157,20 +103,21 @@ class DatasetBuilder:
             missing_df=self.missing
         )
 
-        if fill_zeros is True:
+        if fill_zeros:
             self.reference = self.reference.fillna(0)
             self.missing = self.missing.fillna(0)
 
         data = Data(
             miss_rate=self.miss_rate,
-            hint_rate=self.hint_rate,
             reference=self.reference,
             missing=self.missing,
             observed_mask=self.observed_mask,
             artificial_missing_mask=self.artificial_missing_mask,
+            tissue=self.tissue,
+            tissue_mapping=self.tissue_mapping,
             cell_line=self.cell_line,
+            cell_line_mapping=self.cell_line_mapping,
             min_norm=min_norm,
             max_norm=max_norm,
-            # col_scalers=scalers,
         )
         return data
