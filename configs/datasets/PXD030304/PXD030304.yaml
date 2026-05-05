@@ -1,7 +1,0 @@
-dataset:
-  name: PXD030304
-  path: "../data/raw/PXD030304.tsv"
-  replace_zeros: false
-  drop_top_n_missing: 0
-  miss_rate: 0.1
-  hint_rate: 0.9
