@@ -25,13 +25,12 @@ def read_config(
     return cfg
 
 def build_dataset(
-    dataset_cfg: dict, 
+    dataset_path: Path, 
     miss_rate: float,
     seed: int, 
     fill_zeros: bool,
-    hint_rate: float=0.9,
 ):
-    builder = DatasetBuilder(dataset_cfg, miss_rate=miss_rate, hint_rate=hint_rate)
+    builder = DatasetBuilder(dataset_path, miss_rate=miss_rate)
     data = builder.build(fill_zeros=fill_zeros, seed=seed)
     return builder, data
 
@@ -65,6 +64,7 @@ def needs_zero_fill(model_name: str) -> bool:
 def create_imputer_factory(
     model: dict,
     input_dim: int=None,
+    tissue_dim: int=None,
 ):
     """Return a zero-argument callable that produces a fresh imputer instance."""
     name = model["name"]
@@ -76,18 +76,23 @@ def create_imputer_factory(
         gain_hypers = GainHypers(model_config)
         train_hypers = TrainHypers(train_config)
 
-        return lambda input_dim: GainImputer(input_dim=input_dim, gain_hypers=gain_hypers, train_hypers=train_hypers)
+        return lambda input_dim, tissue_dim: GainImputer(
+            input_dim=input_dim, 
+            tissue_dim=tissue_dim, 
+            gain_hypers=gain_hypers, 
+            train_hypers=train_hypers
+        )
 
     if name == "missForest":
         model_config = read_config(model["model_config"])
         missforest_hypers = MissForestHypers(model_config)
-        return lambda input_dim: MissForestRImputer(missforest_hypers=missforest_hypers)
+        return lambda input_dim, tissue_dim: MissForestRImputer(missforest_hypers=missforest_hypers)
 
     if name == "global_mean":
-        return lambda input_dim: GlobalMeanImputer()
+        return lambda input_dim, tissue_dim: GlobalMeanImputer()
 
     if name == "tissue_mean":
-        return lambda input_dim: TissueMeanImputer()
+        return lambda input_dim, tissue_dim: TissueMeanImputer()
 
     if name == "mice":
         raise NotImplementedError("MICE imputer is not yet implemented.")
@@ -121,7 +126,12 @@ def run_holdout(
             run_dir = make_run_dir(experiment_dir, run, seed)
             experiment_writer = ExperimentWriter(run_dir)
 
-            builder, data = build_dataset(dataset_cfg, miss_level, seed, fill_zeros)
+            builder, data = build_dataset(
+                dataset_path=Path(dataset_cfg["dataset"]["path"]), 
+                miss_rate=miss_level, 
+                seed=seed, 
+                fill_zeros=fill_zeros,
+            )
 
             data_dir = Path(f"{builder.get_dataset_dir()}/miss_{int(miss_level * 100)}")
             data_dir.mkdir(exist_ok=True)
@@ -168,7 +178,12 @@ def run_groupkfold(
         run_dir = make_run_dir(model_dir, run, seed)
         experiment_writer = ExperimentWriter(run_dir)
 
-        builder, data = build_dataset(dataset_cfg, miss_rate, seed, fill_zeros)
+        builder, data = build_dataset(
+            dataset_path=Path(dataset_cfg["dataset"]["path"]), 
+            miss_rate=miss_rate, 
+            seed=seed, 
+            fill_zeros=fill_zeros,
+        )
         save_run_data(dataset_writer, builder, data, experiment_writer, miss_rate, seed)
 
         evaluator = Evaluator(strategy="groupkfold", experiment_writer=experiment_writer)

@@ -45,14 +45,13 @@ def run_evaluate(
 
     # Run corresponding model
     print("Model", model_name)
-
-    builder = DatasetBuilder(dataset_cfg)
+    builder = DatasetBuilder(dataset_path=Path(dataset_cfg["dataset"]["path"]))
     dataset_name = builder.dataset_name
 
     if model_name == "protogain":
-        data = builder.build(fill_zeros=True) #todo change seed to have different runs
+        data = builder.build(fill_zeros=True)
     else:
-        data = builder.build(fill_zeros=False) #todo change seed to have different runs
+        data = builder.build(fill_zeros=False)
 
     dataset_dir = model_dir / f"{dataset_name}"
     miss_dir = dataset_dir / f"miss_{int(round(builder.miss_rate*100))}"
