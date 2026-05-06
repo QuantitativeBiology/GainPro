@@ -78,9 +78,6 @@ class Trainer:
         fake_X = x * mask + sample_G * (1 - mask)
         fake_input_D = torch.cat((fake_X.detach(), hint, tissue_one_hot), 1).float()
         fake_Y = self.model.discriminator(fake_input_D)
-        
-        # print("Data range:", x[x!=0].min().item(), x.max().item())
-        # print("Generator output range:", sample_G.min().item(), sample_G.max().item())
 
         n_observed = mask.sum()
         n_missing = (1 - mask).sum()
@@ -93,14 +90,6 @@ class Trainer:
             n_total / (2 * n_missing),    # weight for missing (minority)
         )
         loss_D = (loss(fake_Y, mask) * weight).mean()
-
-        # print("In discriminator loss")
-        # print("fake Y", fake_Y)
-        # print("mask", mask)
-        # print("Sigmoid(fake_Y)", torch.sigmoid(fake_Y))
-        # print("-log(Sigmoid(fake_Y))", -torch.log(torch.sigmoid(fake_Y)))
-        # print("loss(fake_Y, mask) * weight)", loss(fake_Y, mask) * weight)
-        # print("loss(fake_Y, mask) * weight)", (loss(fake_Y, mask) * weight).mean())   
         return loss_D
     
     def _loss_generator(
@@ -158,7 +147,7 @@ class Trainer:
         self.optimizer_D.step()
         for name, p in self.model.discriminator.named_parameters():
             print(f"  D {name} | mean: {p.data.mean():.6f} | std: {p.data.std():.6f}")
-            break  # just first layer is enough
+            break
         return loss_D
     
     def _update_generator(
@@ -214,7 +203,7 @@ class Trainer:
         mse = nn.MSELoss()(x_true[~observed], x_hat[~observed])
         rmse = np.sqrt(mse.detach().cpu().numpy())
 
-        if not train_mode:
+        if train_mode:
             self.model.train()
 
         return (
