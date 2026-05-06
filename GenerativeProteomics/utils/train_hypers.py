@@ -1,4 +1,3 @@
-
 class TrainHypers:
     def __init__(
         self,
@@ -11,3 +10,4 @@ class TrainHypers:
         self.discriminator_lr = float(train_cfg["discriminator"]["lr"])
 
         self.alpha = train_cfg["alpha"]
+        self.hint_rate = train_cfg["hint_rate"]
