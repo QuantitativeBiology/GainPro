@@ -1,4 +1,8 @@
+import torch
 import numpy as np
+
+from utils.data.dataset import Data
+from utils.writers.experiment_writer import ExperimentWriter
 
 class TissueMeanImputer():
     """
@@ -42,15 +46,24 @@ class TissueMeanImputer():
     
     def train(
         self,
-        x_train: np.ndarray,
-        x_tissue,
+        data: Data,
+        x_train: torch.tensor,
+        mask_train: torch.tensor,
+        experiment_writer: ExperimentWriter,
     ) -> None:
+        _, _, _ = data, mask_train, experiment_writer
+        x_train = x_train.detach().cpu().numpy()
+        x_tissue = data.tissue.detach().cpu().numpy()
         self.compute_tissue_means(x_train, x_tissue)
 
     def impute(
         self,
-        x_missing: np.ndarray,
-        x_tissue,
+        data: Data,
+        x_missing: torch.tensor,
+        mask_eval: torch.tensor,
     ):
+        _ = mask_eval
+        x_missing = x_missing.detach().cpu().numpy()
+        x_tissue = data.tissue.detach().cpu().numpy()
         x_hat = self.impute_tissue_means(x_missing, x_tissue)
         return x_hat

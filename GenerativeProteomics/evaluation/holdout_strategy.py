@@ -3,6 +3,7 @@ import numpy as np
 from datetime import datetime
 
 from utils.data.dataset import Data
+from wrappers.gain import GainImputer
 from utils.writers.experiment_writer import ExperimentWriter
 from evaluation.evaluation_strategy import EvaluationStrategy
 
@@ -13,14 +14,13 @@ class HoldoutStrategy(EvaluationStrategy):
         imputer_factory,
         data: Data,
         experiment_writer: ExperimentWriter,
-        # todo: train/val split
-        # test_size: float=0.2,
-        # random_state: int=42,
-        **kwargs,
+        positive_label: int,
     ) -> None:
-        holdout_dir = experiment_writer.evaluation_dir / "holdout"
-        holdout_dir.mkdir(parents=True, exist_ok=True)
-        experiment_writer.metadata_writer.set_out_dir(holdout_dir)
+        evaluation_holdout_dir = experiment_writer.evaluation_dir / "holdout"
+        evaluation_holdout_dir.mkdir(parents=True, exist_ok=True)
+        experiment_writer.metadata_writer.set_out_dir(evaluation_holdout_dir)
+        experiment_writer.result_writer.set_results_dir(results_dir=evaluation_holdout_dir)
+        experiment_writer.result_writer.set_prediction_dir(prediction_dir=experiment_writer.preds_dir)
         
         observed_mask = data.observed_mask.detach().cpu().numpy()
         artificial_mask = data.artificial_missing_mask.detach().cpu().numpy()
@@ -30,54 +30,40 @@ class HoldoutStrategy(EvaluationStrategy):
         mask_eval = (observed_mask == True) & (artificial_mask == False)
         mask_eval_tensor = torch.tensor(mask_eval, device=data.device)
         
-        x_train_tensor = data.reference.detach()
-        x_train = x_train_tensor.cpu().numpy()
+        x_train = data.reference.detach()
         x_true = data.reference.detach().cpu().numpy()
         x_true = np.nan_to_num(x_true, nan=0)
-        x_missing_tensor = data.missing.detach()
-        x_missing = x_missing_tensor.cpu().numpy()
-        x_missing_tissue = data.tissue.detach().cpu().numpy()
+        x_missing = data.missing.detach()
         
         input_dim = data.reference.shape[1]
         tissue_dim = len(data.tissue_mapping)
         imputer = imputer_factory(input_dim, tissue_dim)
         experiment_writer.metadata_writer.set_start_time(datetime.now())
-        if imputer.__class__.__name__ == "GainImputer":
-            imputer.train(
-                x_train=x_train_tensor, 
-                observed_mask=mask_train_tensor,
-                tissue_ids=data.tissue,
-                num_tissues=len(data.tissue_mapping)
+
+        imputer.train(
+            data=data,
+            x_train=x_train,
+            mask_train=mask_train_tensor,
+            experiment_writer=experiment_writer,
+        )
+        x_pred = imputer.impute(
+            data=data,
+            x_missing=x_missing,
+            mask_eval=mask_eval_tensor,
+        )
+        experiment_writer.metadata_writer.set_end_time(datetime.now())
+
+        if isinstance(imputer, GainImputer):
+            discriminator_precision_recall = imputer.evaluate_discriminator(
+                data=data,
+                x_missing=x_missing, 
+                mask_eval=mask_eval_tensor,
+                positive_label=positive_label, 
             )
-            x_pred = imputer.impute(
-                x_missing=x_missing_tensor, 
-                mask=mask_eval_tensor,
-                tissue_ids=data.tissue,
-                num_tissues=len(data.tissue_mapping)
-            )
-        elif imputer.__class__.__name__ == "MissForestRImputer":
-            imputer.train(x_missing)
-            x_pred = imputer.impute(
-                x_missing=x_missing,
-            )
-        elif imputer.__class__.__name__ == "TissueMeanImputer":
-            imputer.train(
-                x_missing,
-                x_tissue=x_missing_tissue,
-            )
-            x_pred = imputer.impute(
-                x_missing=x_missing,
-                x_tissue=x_missing_tissue,
-            )
-        else:
-            imputer.train(
-                x_train=x_train,
-            )
-            x_pred = imputer.impute(
-                x_missing=x_missing,
+            experiment_writer.result_writer.save_precision_recall_discriminator(
+                precision_recall=discriminator_precision_recall,
             )
 
-        experiment_writer.metadata_writer.set_end_time(datetime.now())
         rmse = self._compute_rmse(x_true, x_pred, mask_eval)
         print("RMSE:", rmse)
         
@@ -106,7 +92,6 @@ class HoldoutStrategy(EvaluationStrategy):
         )
         
         experiment_writer.result_writer.save_test_rmse(
-            out_dir=holdout_dir,
             rmse=rmse,
         )
         

@@ -5,15 +5,21 @@ from pathlib import Path
 class ResultWriter:
     def __init__(
         self,
-        prediction_dir: Path,
     ) -> "ResultWriter":
-        self.prediction_dir = prediction_dir
+        self.prediction_dir = None
+        self.results_dir = None
 
     def set_prediction_dir(
         self,
         prediction_dir: Path,
     ) -> None:
         self.prediction_dir = prediction_dir
+    
+    def set_results_dir(
+        self,
+        results_dir: Path,
+    ) -> None:
+        self.results_dir = results_dir
     
     def save_predictions(
         self,
@@ -61,26 +67,38 @@ class ResultWriter:
 
     def save_test_rmse(
         self,
-        out_dir: Path,
         rmse,
-        fold_id: int = None,
+        fold_id: int=None,
     ) -> None:
-        
         df = pd.DataFrame([
             {
                 "fold": fold_id,
                 "test rmse": rmse
             }
         ])
-        
-        path = out_dir / "rmse_test.csv"
+        path = self.results_dir / "rmse_test.csv"
         if path.exists():
             df.to_csv(path, mode="a", header=False, index=False)
         else:
             df.to_csv(path, index=False)
     
-    def save_metrics(
+    def save_precision_recall_discriminator(
         self,
-        out_dir: Path,
+        precision_recall: dict,
+        fold_id: int=None,
     ) -> None:
-        pass
+        """
+        only for protogain
+        """
+        df = pd.DataFrame([
+            {
+                "fold": fold_id,
+                "discriminator_precision": precision_recall["discriminator_precision"],
+                "discriminator_recall": precision_recall["discriminator_recall"],
+            }
+        ])
+        path = self.results_dir / "discriminator_precision_recall.csv"
+        if path.exists():
+            df.to_csv(path, mode="a", header=False, index=False)
+        else:
+            df.to_csv(path, index=False)

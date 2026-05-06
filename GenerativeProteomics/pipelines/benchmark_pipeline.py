@@ -150,6 +150,7 @@ def run_holdout(
                 imputer_factory=imputer_factory, 
                 data=data,
                 x_tissue=data.tissue.detach().cpu(),
+                positive_label=1,
             )
 
 

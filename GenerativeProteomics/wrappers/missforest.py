@@ -1,8 +1,11 @@
+import torch
 import shutil
 import numpy as np
 
 from missingpy import MissForest
 
+from utils.data.dataset import Data
+from utils.writers.experiment_writer import ExperimentWriter
 from utils.model_hypers import MissForestHypers
 
 class MissForestRImputer():
@@ -34,8 +37,14 @@ class MissForestRImputer():
         
     def train(
         self,
-        x_train: np.ndarray,
+        data: Data,
+        x_train: torch.tensor,
+        mask_train: torch.tensor,
+        experiment_writer: ExperimentWriter,
     ) -> None:
+        _ = mask_train  # MissForest operates on the full matrix; mask not required
+        _, _ = data, experiment_writer
+        x_train = x_train.detach().cpu().numpy()
         self.missforest = MissForest(
             n_estimators=self.n_tree,
             max_iter=self.max_iter,
@@ -46,7 +55,12 @@ class MissForestRImputer():
 
     def impute(
         self,
-        x_missing: np.ndarray,
+        data: Data,
+        x_missing: torch.tensor,
+        mask_eval: torch.tensor,
     ):
+        _ = mask_eval  # MissForest operates on the full matrix; mask not required
+        _ = data
+        x_missing = x_missing.detach().cpu().numpy()
         x_hat = self.missforest.transform(x_missing)
         return x_hat

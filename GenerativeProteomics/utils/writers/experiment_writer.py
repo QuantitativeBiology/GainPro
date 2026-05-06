@@ -33,7 +33,7 @@ class ExperimentWriter:
         ]:
             dir.mkdir(parents=True, exist_ok=True)
         
-        self.result_writer = ResultWriter(prediction_dir=self.preds_dir)
+        self.result_writer = ResultWriter()
         self.metrics_writer = MetricsWriter(self.metrics_dir)
         self.metadata_writer = MetadataWriter()
         self.split_writer = SplitWriter(self.folds_dir)
