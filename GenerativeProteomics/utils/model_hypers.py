@@ -6,6 +6,7 @@ class GainHypers:
     ) -> "GainHypers":
         self.num_hidden_layers_generator = model_cfg["generator"]["num_layers"]
         self.num_hidden_layers_discriminator = model_cfg["discriminator"]["num_layers"]
+        self.hidden_dim = model_cfg["hidden_dim"]
 
 class MissForestHypers:
     def __init__(

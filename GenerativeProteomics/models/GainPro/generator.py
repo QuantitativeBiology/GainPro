@@ -4,27 +4,32 @@ class Generator(nn.Module):
     def __init__(
         self,
         input_dim: int,
-        num_hidden_layers: int = 1,
+        tissue_dim: int,
+        hidden_dim: int,
+        num_hidden_layers: int=1,
     ) -> "Generator":
         super().__init__()
 
         self.input_dim = input_dim
+        self.hidden_dim = self.input_dim if hidden_dim is None else hidden_dim
 
         self.layers = nn.ModuleList()
 
-        self.layers.append(nn.Linear(self.input_dim * 2, self.input_dim))
-        # The generator receives both the corrupted data and the mask.
-        # Input = concat(data_with_noise, mask)
-        # data_with_noise : shape (batch, input_dim)
-        # mask            : shape (batch, input_dim)
-        # After concatenation -> (batch, 2 * input_dim)
+        self.layers.append(nn.Linear(self.input_dim * 2 + tissue_dim, self.hidden_dim))
+        # The generator receives the corrupted data, the sample's tissue and the mask.
+        # Input = concat(data_with_noise, tissue, mask)
+        # data_with_noise: shape (batch, hidden_dim)
+        # tissue: one-hot encoding of tissue, shape (batch, tissue_dim)
+        # mask: shape (batch, input_dim)
+        # After concatenation -> (batch, 2 * input_dim + tissue_dim)
         self.layers.append(nn.LeakyReLU()) 
 
         for _ in range(num_hidden_layers):
-            self.layers.append(nn.Linear(self.input_dim, self.input_dim))
+            self.layers.append(nn.Linear(self.hidden_dim, self.hidden_dim))
             self.layers.append(nn.LeakyReLU())
         
-        self.layers.append(nn.Linear(self.input_dim, self.input_dim))
+        self.layers.append(nn.Linear(self.hidden_dim, self.input_dim))
+        self.layers.append(nn.Sigmoid())
     
     def forward(
         self,

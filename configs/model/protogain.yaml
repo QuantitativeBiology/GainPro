@@ -1,5 +1,7 @@
 name: protogain
 
+hidden_dim: 1024
+
 generator:
   num_layers: 3
 

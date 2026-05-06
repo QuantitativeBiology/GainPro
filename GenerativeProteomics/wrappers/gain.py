@@ -20,6 +20,7 @@ class GainImputer(Imputer):
         self.gain = Gain(
             input_dim=input_dim,
             tissue_dim=tissue_dim,
+            hidden_dim=gain_hypers.hidden_dim,
             num_hidden_layers_generator=gain_hypers.num_hidden_layers_generator,
             num_hidden_layers_discriminator=gain_hypers.num_hidden_layers_discriminator
         )
@@ -64,8 +65,6 @@ class GainImputer(Imputer):
         mask_eval: torch.tensor,
         positive_label: int, 
     ) -> dict[str, float]:
-        print("\n\n")
-        print("Ground truth mask", data.observed_mask)
         results = self.trainer.compute_precision_recall_discriminator(
             x=x_missing, 
             mask=mask_eval,
