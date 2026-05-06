@@ -6,7 +6,6 @@ class Data:
     def __init__(
         self, 
         miss_rate: float,
-        hint_rate: float,
         reference: pd.DataFrame,
         missing: pd.DataFrame,
         observed_mask: pd.DataFrame,
@@ -41,20 +40,3 @@ class Data:
         # self.col_scalers = col_scalers
 
         self.miss_rate = miss_rate
-        self.hint_rate = hint_rate
-
-        hint = generate_hint(observed_mask, self.hint_rate)
-        self.hint = torch.from_numpy(hint.values).to(self.device)
-
-def generate_hint(observed_mask, hint_rate):
-    hint_mask = generate_mask(observed_mask, 1 - hint_rate)
-    hint = observed_mask * hint_mask
-    return hint
-
-def generate_mask(data, miss_rate):
-    dim = data.shape[1]
-    size = data.shape[0]
-    A = np.random.uniform(0.0, 1.0, size=(size, dim))
-    B = A > miss_rate
-    observed_mask = 1.0 * B
-    return observed_mask
