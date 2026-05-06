@@ -1,5 +1,5 @@
 import argparse
-from commands import prepare_data, train, evaluate, predict, impute, transfer_impute, benchmark, experiment, plot
+from commands import prepare_data, train, predict, impute, transfer_impute, benchmark, experiment, plot
 
 def main():
     parser = argparse.ArgumentParser()
@@ -7,7 +7,6 @@ def main():
 
     prepare_data.add_parser(subparsers)
     train.add_parser(subparsers)
-    evaluate.add_parser(subparsers)
     predict.add_parser(subparsers)
     impute.add_parser(subparsers)
     benchmark.add_parser(subparsers)
@@ -20,8 +19,6 @@ def main():
         prepare_data.run(args)
     if args.command == "train":
         train.run(args)
-    if args.command == "evaluate":
-        evaluate.run(args)
     if args.command == "predict":
         predict.run(args)
     if args.command == "impute":
