@@ -155,29 +155,31 @@ def compute_missing_rate(
 def induce_missing(
     df: pd.DataFrame, 
     seed: int,
-    # ceiling_miss_rate: float=1.0,
     miss_rate: float=0.0,
-) -> tuple[pd.DataFrame, pd.DataFrame]:
-
+    restrict_to_observed: bool=False,
+) -> pd.DataFrame:
     rng = np.random.default_rng(seed)
-
     df_missing = df.copy()
 
-    current_missing = df_missing.isna().sum().sum()
-    total_entries = df_missing.size
+    n_rows, n_cols = df_missing.shape
+    total_entries = n_rows * n_cols
+    n_to_mask = int(miss_rate * total_entries)
 
-    additional_to_mask = int(miss_rate * total_entries)
+    if restrict_to_observed:
+        mask = df_missing.notna().values
+    else:
+        mask = np.ones((n_rows, n_cols), dtype=bool)
 
-    # positions that currently have values
-    eligible_positions = np.argwhere(df_missing.notna().values)
-
-    if additional_to_mask > len(eligible_positions):
-        raise ValueError("Not enough observed entries to mask.")
-
-    chosen_idx = rng.choice(len(eligible_positions), size=additional_to_mask, replace=False)
+    eligible_positions = np.argwhere(mask)
+    if n_to_mask > len(eligible_positions):
+        raise ValueError("Not enough eligible entries to mask.")
     
-    for i, j in eligible_positions[chosen_idx]:
-        df_missing.iat[i, j] = np.nan
+    chosen = eligible_positions[
+        rng.choice(len(eligible_positions), size=n_to_mask, replace=False)
+    ]
+
+    rows, cols = chosen[:, 0], chosen[:, 1]
+    df_missing.values[rows, cols] = np.nan
 
     return df_missing
 
@@ -201,13 +203,12 @@ def compute_evaluation_mask(
     artificially_removed = ~(~reference_df.isna() & missing_df.isna())
     return artificially_removed
 
-def build_domain(
-    df: pd.DataFrame
-) -> pd.DataFrame:
-    # todo alterar isto de forma a puder receber do user
-    domain_df = pd.DataFrame({
-            "Domain": df.index.str.split('-Sample').str[0].to_list()
-            },
-            index=df.index
-    )
-    return domain_df
+def generate_hint(
+    observed_mask, 
+    hint_rate: float,
+):
+    # For each entry, with probability hint_rate, reveal the true mask value
+    # Otherwise, give 0.5 (uninformative)
+    reveal = np.random.binomial(1, hint_rate, observed_mask.shape)  # 1 = reveal this entry
+    hint = reveal * observed_mask + (1 - reveal) * 0.5
+    return hint
