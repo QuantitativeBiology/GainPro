@@ -43,23 +43,19 @@ class Trainer:
         tissue_ids, 
         num_tissues
     ) -> torch.tensor:
-        #todo acho que isto nao vai funcionar para o groupkfold porque temos um split das samples a priori e ficamos com duas classes 1's e.g. diferentes
+        #todo adapt to groupkfold scenario
+        # cause we will have a split a priori and then we will ended up with repeated classes
         return torch.nn.functional.one_hot(tissue_ids.long(), num_classes=num_tissues).float()
 
     def generate_sample(
         self,
-        data, 
+        x, 
         mask,
+        Z,
         tissue_one_hot,
-        Z=None,
     ):
-        size, dim = data.shape[0], data.shape[1]
-
-        if Z is None:
-            Z = torch.rand((size, dim), device=self.device)
-
         mask = mask.float()
-        missing_data_with_noise = data * mask + Z * (1 - mask)
+        missing_data_with_noise = mask * x + (1 - mask) * Z
         input_G = torch.cat((missing_data_with_noise, mask, tissue_one_hot), 1).float()
         return self.model.generator(input_G)
     
@@ -71,25 +67,28 @@ class Trainer:
         Z,
         tissue_one_hot,
     ) -> torch.tensor:
-        loss = nn.BCEWithLogitsLoss(reduction="none")
-
         mask = mask.float()
-        sample_G = self.generate_sample(data=x, mask=mask, tissue_one_hot=tissue_one_hot, Z=Z)
-        fake_X = x * mask + sample_G * (1 - mask)
-        fake_input_D = torch.cat((fake_X.detach(), hint, tissue_one_hot), 1).float()
-        fake_Y = self.model.discriminator(fake_input_D)
+        sample_G = self.generate_sample(x=x, mask=mask, Z=Z, tissue_one_hot=tissue_one_hot)
+        x_hat = mask * x + (1 - mask) * sample_G
+        mask_hat = self.model.discriminator(torch.cat((x_hat.detach(), hint, tissue_one_hot), 1).float())
 
-        n_observed = mask.sum()
-        n_missing = (1 - mask).sum()
-        n_total = mask.numel()
+        # Only train on positions where hint == 0.5 (b_i = 0, i.e. unknown to discriminator)
+        b_mask = (hint == 0.5)
+
+        # n_observed = mask[b_mask].sum()
+        # n_missing = (1 - mask[b_mask]).sum()
+        # n_total = b_mask.sum()
 
         # Weight each position inversely proportional to its class frequency
-        weight = torch.where(
-            mask.bool(),
-            n_total / (2 * n_observed),   # weight for observed (majority)
-            n_total / (2 * n_missing),    # weight for missing (minority)
-        )
-        loss_D = (loss(fake_Y, mask) * weight).mean()
+        # weight = torch.where(
+        #     mask[b_mask].bool(),
+        #     n_total / (2 * n_observed),   # weight for observed (majority)
+        #     n_total / (2 * n_missing),    # weight for missing (minority)
+        # )
+        loss_D = (nn.BCEWithLogitsLoss(reduction="mean")(
+            mask_hat[b_mask], 
+            mask[b_mask]
+        ))
         return loss_D
     
     def _loss_generator(
@@ -100,26 +99,29 @@ class Trainer:
         Z,
         tissue_one_hot,
     ) -> torch.tensor:
-        loss = nn.BCEWithLogitsLoss(reduction="none")
-        loss_mse = nn.MSELoss(reduction="none")
-
         mask = mask.float()
-        sample_G = self.generate_sample(data=x, mask=mask, tissue_one_hot=tissue_one_hot, Z=Z)
-        fake_X = x * mask + sample_G * (1 - mask)
+        sample_G = self.generate_sample(x=x, mask=mask, Z=Z, tissue_one_hot=tissue_one_hot)
+        x_hat = mask * x + (1 - mask) * sample_G
 
-        fake_input_D = torch.cat((fake_X, hint, tissue_one_hot), 1).float()
-        fake_Y = self.model.discriminator(fake_input_D)
+        mask_hat = self.model.discriminator(torch.cat((x_hat, hint, tissue_one_hot), 1).float())
 
-        ones = torch.full_like(fake_Y, 1.0, device=self.device)
-        observed_entries = mask.bool()
+        # Only train on positions where hint == 0.5 (b_i = 0, i.e. unknown to discriminator)
+        target = torch.ones_like(mask_hat, device=self.device).float()
+        b_mask = (hint == 0.5)
         loss_G_entropy = (
-            loss(fake_Y, ones.reshape(fake_Y.shape).float().to(self.device))[~observed_entries]
-        ).mean()
-        loss_G_mse = (
-            loss_mse((sample_G[observed_entries]).float(), (x[observed_entries]).float())
-        ).mean()
+            nn.BCEWithLogitsLoss(reduction="mean")(
+                mask_hat[b_mask], 
+                target[b_mask],
+            )
+        )
 
-        # print(f"entropy: {loss_G_entropy.item():.4f}, mse: {loss_G_mse.item():.4f}, alpha*mse: {self.alpha * loss_G_mse.item():.4f}")
+        observed_entries = mask.bool()
+        loss_G_mse = (
+            nn.MSELoss(reduction="mean")(
+                sample_G[observed_entries].float(), 
+                x[observed_entries].float(),
+            )
+        )
         loss_G = loss_G_entropy + self.alpha * loss_G_mse
         return loss_G, loss_G_mse, loss_G_entropy
     
@@ -145,9 +147,9 @@ class Trainer:
             if p.grad is not None) ** 0.5
         print(f"  D grad norm: {d_norm:.4f}")
         self.optimizer_D.step()
-        for name, p in self.model.discriminator.named_parameters():
-            print(f"  D {name} | mean: {p.data.mean():.6f} | std: {p.data.std():.6f}")
-            break
+        # for name, p in self.model.discriminator.named_parameters():
+        #     print(f"  D {name} | mean: {p.data.mean():.6f} | std: {p.data.std():.6f}")
+        #     break
         return loss_D
     
     def _update_generator(
@@ -172,9 +174,9 @@ class Trainer:
             if p.grad is not None) ** 0.5
         print(f"  G grad norm: {g_norm:.4f}")
         self.optimizer_G.step()
-        for name, p in self.model.generator.named_parameters():
-            print(f"  G {name} | mean: {p.data.mean():.6f} | std: {p.data.std():.6f}")
-            break
+        # for name, p in self.model.generator.named_parameters():
+        #     print(f"  G {name} | mean: {p.data.mean():.6f} | std: {p.data.std():.6f}")
+        #     break
         return loss_G, generator_rmse, generator_entropy
     
     def epoch(
@@ -197,10 +199,9 @@ class Trainer:
                 discriminator_loss = self._loss_discriminator(x=x, mask=mask, hint=hint, Z=Z, tissue_one_hot=tissue_one_hot)
                 generator_loss, generator_rmse, generator_entropy = self._loss_generator(x=x, mask=mask, hint=hint, Z=Z, tissue_one_hot=tissue_one_hot)
 
-        x_hat = self.generate_sample(data=x, mask=mask, tissue_one_hot=tissue_one_hot, Z=Z)
+        x_hat = self.generate_sample(x=x, mask=mask, Z=Z, tissue_one_hot=tissue_one_hot)
 
-        observed = mask.bool()
-        mse = nn.MSELoss()(x_true[~observed], x_hat[~observed])
+        mse = nn.MSELoss()(x_true, x_hat)
         rmse = np.sqrt(mse.detach().cpu().numpy())
 
         if train_mode:
@@ -261,10 +262,10 @@ class Trainer:
     ) -> np.ndarray:
         tissue_one_hot = self._get_tissue_one_hot(tissue_ids, num_tissues).to(self.device)
         x_hat = self.generate_sample(
-            data=x_missing, 
+            x=x_missing, 
             mask=mask,
+            Z=torch.zeros(x_missing.shape, device=self.device),
             tissue_one_hot=tissue_one_hot,
-            Z=torch.zeros(x_missing.shape, device=self.device)
         )
         return x_hat.detach().cpu().numpy()
     
@@ -280,10 +281,10 @@ class Trainer:
         hint = torch.tensor(hint, device=self.device)
         # print("Hint", hint)
         sample_G = self.generate_sample(
-            data=x, 
+            x=x, 
             mask=mask, 
+            Z=torch.zeros(x.shape, device=self.device),
             tissue_one_hot=tissue_one_hot, 
-            Z=torch.zeros(x.shape, device=self.device)
         )
         mask = mask.float()
         fake_X = x * mask + sample_G * (1 - mask)
@@ -305,7 +306,8 @@ class Trainer:
         num_tissues,
         positive_label: int,
     ) -> dict[str, float]:
-        print("Positive label", positive_label)
+        print(f"\n{'='*10}")
+        print(f"Positive label: {positive_label} ({"Observed Entry" if positive_label==1 else "Missing Entry" if positive_label==0 else "Unknown"})")
         mask_hat = self.discriminate(
             x,
             mask,
@@ -328,5 +330,6 @@ class Trainer:
         )
         print("Discriminator's precision:", precision)
         print("Discriminator's recall:", recall)
+        print(f"{'='*10}")
         results = {"discriminator_precision": precision, "discriminator_recall": recall}
         return results
