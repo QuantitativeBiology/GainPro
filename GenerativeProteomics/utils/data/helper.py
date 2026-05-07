@@ -2,9 +2,6 @@ import numpy as np
 import pandas as pd
 import anndata as ad
 from pathlib import Path
-import logging
-
-logger = logging.getLogger(__name__)
 
 def load_csv(
     dataset_path: Path,
@@ -187,7 +184,7 @@ def compute_observed_mask(
     reference_df: pd.DataFrame,
 ) -> pd.DataFrame:
     """
-    Create binary mask indicating originally observed entries (observed entries = 1, missing = 0).
+    Create binary mask indicating originally observed entries (observed entries=1, missing=0).
     """
     return reference_df.notna()
 
@@ -196,12 +193,18 @@ def compute_evaluation_mask(
     missing_df: pd.DataFrame,
 ) -> pd.DataFrame:
     """
-    Create binary mask indicating artificially introduced removed entries (artificially removed = 0).
-
+    Create binary mask indicating artificially missing entries (artificially missing=1).
     Used to assess the imputation performance.
     """
-    artificially_removed = ~(~reference_df.isna() & missing_df.isna())
-    return artificially_removed
+    observed_mask = reference_df.notna()
+    missing_mask = missing_df.isna()
+    artificial_mask = (observed_mask.values == True) & (missing_mask.values == True)
+    artificial_mask = pd.DataFrame(
+        artificial_mask,
+        index=reference_df.index,
+        columns=reference_df.columns
+    )
+    return artificial_mask
 
 def generate_hint(
     observed_mask, 

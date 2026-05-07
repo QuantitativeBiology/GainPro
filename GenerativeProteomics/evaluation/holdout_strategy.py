@@ -25,9 +25,9 @@ class HoldoutStrategy(EvaluationStrategy):
         observed_mask = data.observed_mask.detach().cpu().numpy()
         artificial_mask = data.artificial_missing_mask.detach().cpu().numpy()
         
-        mask_train = (observed_mask == True) & (artificial_mask == True)
+        mask_train = ~(artificial_mask)
         mask_train_tensor = torch.tensor(mask_train, device=data.device)
-        mask_eval = (observed_mask == True) & (artificial_mask == False)
+        mask_eval = (artificial_mask == True)
         mask_eval_tensor = torch.tensor(mask_eval, device=data.device)
         
         x_train = data.reference.detach()

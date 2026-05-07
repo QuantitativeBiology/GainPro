@@ -88,16 +88,17 @@ class GroupKFoldStrategy(EvaluationStrategy):
             print(f"Holdout tissue(s): {holdout_tissue_names}")
             print(f"Train samples: {len(train_idx)}, Test samples: {len(test_idx)}\n")
 
-            x_train = data.reference[train_idx, :].detach().cpu().numpy()
+            x_train = data.missing[train_idx, :].detach().cpu().numpy()
             x_true_test = data.reference[test_idx, :].detach().cpu().numpy()
             x_true_test = np.nan_to_num(x_true_test, nan=0)
             x_missing_test = data.missing[test_idx, :].detach().cpu().numpy()
 
-            observed_mask_np = data.observed_mask.detach().cpu().numpy()
-            artificial_mask_np = data.artificial_missing_mask.detach().cpu().numpy()
-            mask_train = (observed_mask_np==True) & (artificial_mask_np==True)
+            observed_mask = data.observed_mask.detach().cpu().numpy()
+            artificial_mask = data.artificial_missing_mask.detach().cpu().numpy()
+
+            mask_train = ~(artificial_mask)
             mask_train = mask_train[train_idx]
-            mask_eval = (observed_mask_np==True) & (artificial_mask_np==False) # artificial hidden entries
+            mask_eval = (artificial_mask==True) # artificial hidden entries
             mask_eval = mask_eval[test_idx]
 
             # Reinitialize imputer
@@ -132,9 +133,9 @@ class GroupKFoldStrategy(EvaluationStrategy):
             x_pred_log2p1_inverse = self._inverse_log2p1(x_pred_denorm)
             x_true_log2p1_inverse = self._inverse_log2p1(x_true_denorm)
             x_true_log2p1_inverse = np.where(
-                observed_mask_np[test_idx] == 0, 
+                observed_mask[test_idx] == 0, 
                 np.nan, 
-                np.power(2, x_true_test) - 1
+                2, x_true_log2p1_inverse
             )
             
             experiment_writer.result_writer.set_prediction_dir(prediction_dir=fold_dir)
@@ -150,8 +151,8 @@ class GroupKFoldStrategy(EvaluationStrategy):
                 group_mapping=data.tissue_mapping,
             )
             
+            experiment_writer.result_writer.set_results_dir(results_dir=fold_dir)
             experiment_writer.result_writer.save_test_rmse(
-                out_dir=fold_dir,
                 rmse=rmse,
             )
             

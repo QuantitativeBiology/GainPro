@@ -108,7 +108,6 @@ class DatasetBuilder:
             self.missing = self.missing.fillna(0)
 
         data = Data(
-            miss_rate=self.miss_rate,
             reference=self.reference,
             missing=self.missing,
             observed_mask=self.observed_mask,
