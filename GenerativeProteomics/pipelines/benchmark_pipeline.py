@@ -78,7 +78,7 @@ def create_imputer_factory(
 
         return lambda input_dim, tissue_dim: GainImputer(
             input_dim=input_dim, 
-            tissue_dim=tissue_dim, 
+            tissue_dim=tissue_dim,
             gain_hypers=gain_hypers, 
             train_hypers=train_hypers
         )
@@ -149,7 +149,6 @@ def run_holdout(
             evaluator.evaluate(
                 imputer_factory=imputer_factory, 
                 data=data,
-                x_tissue=data.tissue.detach().cpu(),
                 positive_label=1,
             )
 
