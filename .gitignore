@@ -3,6 +3,7 @@ data/processed
 data/raw
 data/splits
 data/breast
+todo.md
 .DS_Store
 
 # Byte-compiled / optimized / DLL files
