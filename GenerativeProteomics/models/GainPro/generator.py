@@ -5,13 +5,14 @@ class Generator(nn.Module):
         self,
         input_dim: int,
         tissue_dim: int,
-        hidden_dim: int,
+        hidden_dim: int=None,
         num_hidden_layers: int=1,
     ) -> "Generator":
         super().__init__()
 
         self.input_dim = input_dim
-        self.hidden_dim = self.input_dim/2 if hidden_dim is None else hidden_dim
+        self.hidden_dim = int(self.input_dim/2) if hidden_dim is None else hidden_dim
+        print("Hidden dim", self.hidden_dim)
 
         self.layers = nn.ModuleList()
 

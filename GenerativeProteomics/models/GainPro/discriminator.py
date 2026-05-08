@@ -11,7 +11,8 @@ class Discriminator(nn.Module):
         super().__init__()
 
         self.input_dim = input_dim
-        self.hidden_dim = self.input_dim/2 if hidden_dim is None else hidden_dim
+        self.hidden_dim = int(self.input_dim/2) if hidden_dim is None else hidden_dim
+        print("Hidden dim", self.hidden_dim)
 
         self.layers = nn.ModuleList()
 

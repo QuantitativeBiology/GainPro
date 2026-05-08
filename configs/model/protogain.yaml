@@ -1,6 +1,6 @@
 name: protogain
 
-hidden_dim: 1024
+hidden_dim:
 
 generator:
   num_layers: 3
