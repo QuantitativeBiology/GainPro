@@ -16,7 +16,7 @@ class Trainer:
         train_hypers: TrainHypers,
     ) -> "Trainer":
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        
+
         self.model = model
 
         self.num_epochs = train_hypers.num_epochs
@@ -43,7 +43,7 @@ class Trainer:
         tissue_ids, 
         num_tissues
     ) -> torch.tensor:
-        #todo adapt to groupkfold scenario
+        # todo adapt to groupkfold scenario
         # cause we will have a split a priori and then we will ended up with repeated classes
         return torch.nn.functional.one_hot(tissue_ids.long(), num_classes=num_tissues).float()
 
@@ -56,9 +56,10 @@ class Trainer:
     ):
         mask = mask.float()
         missing_data_with_noise = mask * x + (1 - mask) * Z
-        input_G = torch.cat((missing_data_with_noise, mask, tissue_one_hot), 1).float()
+        input_G = torch.cat((missing_data_with_noise, mask), 1).float()
+        # input_G = torch.cat((missing_data_with_noise, mask, tissue_one_hot), 1).float()
         return self.model.generator(input_G)
-    
+
     def _loss_discriminator(
         self,
         x,
@@ -70,27 +71,18 @@ class Trainer:
         mask = mask.float()
         sample_G = self.generate_sample(x=x, mask=mask, Z=Z, tissue_one_hot=tissue_one_hot)
         x_hat = mask * x + (1 - mask) * sample_G
-        mask_hat = self.model.discriminator(torch.cat((x_hat.detach(), hint, tissue_one_hot), 1).float())
+        # mask_hat = self.model.discriminator(torch.cat((x_hat.detach(), hint, tissue_one_hot), 1).float())
+        mask_hat = self.model.discriminator(torch.cat((x_hat.detach(), hint), 1).float())
 
         # Only train on positions where hint == 0.5 (b_i = 0, i.e. unknown to discriminator)
         b_mask = (hint == 0.5)
 
-        # n_observed = mask[b_mask].sum()
-        # n_missing = (1 - mask[b_mask]).sum()
-        # n_total = b_mask.sum()
-
-        # Weight each position inversely proportional to its class frequency
-        # weight = torch.where(
-        #     mask[b_mask].bool(),
-        #     n_total / (2 * n_observed),   # weight for observed (majority)
-        #     n_total / (2 * n_missing),    # weight for missing (minority)
-        # )
         loss_D = (nn.BCEWithLogitsLoss(reduction="mean")(
             mask_hat[b_mask], 
             mask[b_mask]
         ))
         return loss_D
-    
+
     def _loss_generator(
         self,
         x,
@@ -103,7 +95,8 @@ class Trainer:
         sample_G = self.generate_sample(x=x, mask=mask, Z=Z, tissue_one_hot=tissue_one_hot)
         x_hat = mask * x + (1 - mask) * sample_G
 
-        mask_hat = self.model.discriminator(torch.cat((x_hat, hint, tissue_one_hot), 1).float())
+        mask_hat = self.model.discriminator(torch.cat((x_hat, hint), 1).float())
+        # mask_hat = self.model.discriminator(torch.cat((x_hat, hint, tissue_one_hot), 1).float())
 
         # Only train on positions where hint == 0.5 (b_i = 0, i.e. unknown to discriminator)
         target = torch.ones_like(mask_hat, device=self.device).float()
@@ -124,7 +117,7 @@ class Trainer:
         )
         loss_G = loss_G_entropy + self.alpha * loss_G_mse
         return loss_G, loss_G_mse, loss_G_entropy
-    
+
     def _update_discriminator(
         self,
         x,
@@ -151,7 +144,7 @@ class Trainer:
         #     print(f"  D {name} | mean: {p.data.mean():.6f} | std: {p.data.std():.6f}")
         #     break
         return loss_D
-    
+
     def _update_generator(
         self,
         x,
@@ -178,7 +171,7 @@ class Trainer:
         #     print(f"  G {name} | mean: {p.data.mean():.6f} | std: {p.data.std():.6f}")
         #     break
         return loss_G, generator_rmse, generator_entropy
-    
+
     def epoch(
         self,
         x,
@@ -214,7 +207,7 @@ class Trainer:
             generator_entropy.detach().clone(), 
             rmse
         )
-    
+
     def train(
         self,
         x_train: torch.tensor,
@@ -227,8 +220,6 @@ class Trainer:
         for ep in range(1, self.num_epochs+1):
             print(f"Epoch {ep}/{self.num_epochs}")
 
-            Z = torch.rand(x_train.shape, device=self.device)
-
             hint = generate_hint(observed_mask.detach().cpu().numpy(), self.hint_rate)
             hint = torch.tensor(hint, device=self.device)
 
@@ -237,7 +228,7 @@ class Trainer:
                 x_true=x_train,
                 mask=observed_mask,
                 hint=hint,
-                Z=Z,
+                Z=torch.rand(x_train.shape, device=self.device),
                 tissue_one_hot=tissue_one_hot,
                 train_mode=True
             )
@@ -252,7 +243,7 @@ class Trainer:
             self.scheduler_D.step()
 
         experiment_writer.metrics_writer.log_metrics(metrics=self.metrics)
-        
+
     def impute(
         self,
         x_missing,
@@ -268,7 +259,7 @@ class Trainer:
             tissue_one_hot=tissue_one_hot,
         )
         return x_hat.detach().cpu().numpy()
-    
+
     def discriminate(
         self,
         x,
@@ -277,18 +268,18 @@ class Trainer:
         num_tissues,
     ) -> torch.tensor:
         tissue_one_hot = self._get_tissue_one_hot(tissue_ids, num_tissues).to(self.device)
-        hint = generate_hint(mask.detach().cpu().numpy(), self.hint_rate)
+        hint = generate_hint(mask.detach().cpu().numpy(), hint_rate=0.0)
         hint = torch.tensor(hint, device=self.device)
-        # print("Hint", hint)
         sample_G = self.generate_sample(
             x=x, 
             mask=mask, 
-            Z=torch.zeros(x.shape, device=self.device),
+            Z=torch.rand(x.shape, device=self.device),
             tissue_one_hot=tissue_one_hot, 
         )
-        mask = mask.float()
+        mask = (~mask).float()
         fake_X = x * mask + sample_G * (1 - mask)
-        fake_input_D = torch.cat((fake_X.detach(), hint, tissue_one_hot), 1).float()
+        # fake_input_D = torch.cat((fake_X.detach(), hint, tissue_one_hot), 1).float()
+        fake_input_D = torch.cat((fake_X.detach(), hint), 1).float()
         logits = self.model.discriminator(fake_input_D)
         # print("Logits", logits)
         # print("Sigmoid", torch.sigmoid(logits))
@@ -296,7 +287,7 @@ class Trainer:
         # print("Predicted mask", mask_hat)
         # print("Artificial mask", mask)
         return mask_hat
-    
+
     def compute_precision_recall_discriminator(
         self,
         x,

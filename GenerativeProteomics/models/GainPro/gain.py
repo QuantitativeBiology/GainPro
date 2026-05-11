@@ -8,7 +8,7 @@ class Gain(nn.Module):
     def __init__(
         self,
         input_dim: int,
-        tissue_dim: int,
+        # tissue_dim: int,
         hidden_dim: int=None,
         num_hidden_layers_generator: int=1,
         num_hidden_layers_discriminator: int=1,
@@ -17,14 +17,14 @@ class Gain(nn.Module):
 
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.input_dim = input_dim
-        self.tissue_dim = tissue_dim
+        # self.tissue_dim = tissue_dim
         self.hidden_dim = int(self.input_dim/2) if hidden_dim is None else hidden_dim
         self.num_hidden_layers_generator = num_hidden_layers_generator
         self.num_hidden_layers_discriminator = num_hidden_layers_discriminator
 
         self.generator = Generator(
             input_dim=self.input_dim,
-            tissue_dim=self.tissue_dim,
+            # tissue_dim=self.tissue_dim,
             hidden_dim=self.hidden_dim,
             num_hidden_layers=self.num_hidden_layers_generator
         )
@@ -32,7 +32,7 @@ class Gain(nn.Module):
 
         self.discriminator = Discriminator(
             input_dim=self.input_dim,
-            tissue_dim=self.tissue_dim,
+            # tissue_dim=self.tissue_dim,
             hidden_dim=self.hidden_dim,
             num_hidden_layers=self.num_hidden_layers_discriminator
         )

@@ -13,13 +13,13 @@ class GainImputer(Imputer):
     def __init__(
         self,
         input_dim: int,
-        tissue_dim: int,
+        # tissue_dim: int,
         gain_hypers: GainHypers,
         train_hypers: TrainHypers,
     ) -> "GainImputer":
         self.gain = Gain(
             input_dim=input_dim,
-            tissue_dim=tissue_dim,
+            # tissue_dim=tissue_dim,
             hidden_dim=gain_hypers.hidden_dim,
             num_hidden_layers_generator=gain_hypers.num_hidden_layers_generator,
             num_hidden_layers_discriminator=gain_hypers.num_hidden_layers_discriminator

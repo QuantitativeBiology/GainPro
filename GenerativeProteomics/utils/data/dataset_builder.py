@@ -28,6 +28,8 @@ class DatasetBuilder:
         self.dataset_name = self.dataset_path.stem
 
         self.load_dataset()
+        self.transpose = "tissue" in self.df.index
+
         self.clean()
         self.log_transform()
 
@@ -54,17 +56,18 @@ class DatasetBuilder:
         return self.dataset_path.parent
     
     def clean(self) -> None:
-        if "Cell_line" in self.df.columns:
-            cat = self.df["tissue"].astype("category")
-            self.cell_line = cat.cat.codes
-            self.cell_line_mapping = dict(enumerate(cat.cat.categories))
-            self.df = self.df.drop(columns=["Cell_line"])
-
         if "tissue" in self.df.columns:
+            # Matrix: (samples x proteins)
             cat = self.df["tissue"].astype("category")
             self.tissue = cat.cat.codes
             self.tissue_mapping = dict(enumerate(cat.cat.categories))
             self.df = self.df.drop(columns=["tissue"])
+        if "tissue" in self.df.index:
+            # Transpose matrix: (proteins x samples)
+            cat = self.df.loc["tissue"].astype("category")
+            self.tissue = cat.cat.codes
+            self.tissue_mapping = dict(enumerate(cat.cat.categories))
+            self.df = self.df.drop(index=["tissue"])
 
     def log_transform(self) -> None:
         values = self.df.values.astype(float)
@@ -114,8 +117,7 @@ class DatasetBuilder:
             artificial_missing_mask=self.artificial_missing_mask,
             tissue=self.tissue,
             tissue_mapping=self.tissue_mapping,
-            cell_line=self.cell_line,
-            cell_line_mapping=self.cell_line_mapping,
+            transpose=self.transpose,
             min_norm=min_norm,
             max_norm=max_norm,
         )

@@ -4,7 +4,7 @@ class Generator(nn.Module):
     def __init__(
         self,
         input_dim: int,
-        tissue_dim: int,
+        # tissue_dim: int,
         hidden_dim: int=None,
         num_hidden_layers: int=1,
     ) -> "Generator":
@@ -16,7 +16,8 @@ class Generator(nn.Module):
 
         self.layers = nn.ModuleList()
 
-        self.layers.append(nn.Linear(self.input_dim * 2 + tissue_dim, self.hidden_dim))
+        self.layers.append(nn.Linear(self.input_dim * 2, self.hidden_dim))
+        # self.layers.append(nn.Linear(self.input_dim * 2 + tissue_dim, self.hidden_dim))
         # The generator receives the corrupted data, the sample's tissue and the mask.
         # Input = concat(data_with_noise, tissue, mask)
         # data_with_noise: shape (batch, hidden_dim)

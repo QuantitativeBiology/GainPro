@@ -15,8 +15,9 @@ def load_csv(
     """
     df = pd.read_csv(
         dataset_path, 
-        index_col=0
-    )  # samples as rows (obs.) and proteins as columns
+        index_col=0,
+        low_memory=False,
+    )
     return df
 
 def load_anndata(

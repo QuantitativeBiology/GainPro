@@ -37,7 +37,8 @@ class HoldoutStrategy(EvaluationStrategy):
         
         input_dim = data.reference.shape[1]
         tissue_dim = len(data.tissue_mapping)
-        imputer = imputer_factory(input_dim, tissue_dim)
+        # imputer = imputer_factory(input_dim, tissue_dim)
+        imputer = imputer_factory(input_dim)
         experiment_writer.metadata_writer.set_start_time(datetime.now())
 
         imputer.train(
@@ -89,6 +90,7 @@ class HoldoutStrategy(EvaluationStrategy):
             artificial_missing_mask=data.artificial_missing_mask,
             group_ids=data.tissue.cpu().numpy(),
             group_mapping=data.tissue_mapping,
+            transpose=data.transpose,
         )
         
         experiment_writer.result_writer.save_test_rmse(

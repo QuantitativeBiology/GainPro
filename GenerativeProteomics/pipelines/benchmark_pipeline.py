@@ -48,7 +48,7 @@ def save_run_data(
     miss_rate: float,
     seed: int,
 ) -> None:
-    dataset_writer.save_data(data, experiment_writer.data_dir)
+    dataset_writer.save_data(data, experiment_writer.data_dir, transpose=data.transpose)
     dataset_writer.save_data_metadata(
         original_missingness=builder.original_missingness,
         miss_rate=miss_rate,
@@ -64,7 +64,7 @@ def needs_zero_fill(model_name: str) -> bool:
 def create_imputer_factory(
     model: dict,
     input_dim: int=None,
-    tissue_dim: int=None,
+    # tissue_dim: int=None,
 ):
     """Return a zero-argument callable that produces a fresh imputer instance."""
     name = model["name"]
@@ -76,9 +76,14 @@ def create_imputer_factory(
         gain_hypers = GainHypers(model_config)
         train_hypers = TrainHypers(train_config)
 
-        return lambda input_dim, tissue_dim: GainImputer(
-            input_dim=input_dim, 
-            tissue_dim=tissue_dim,
+        # return lambda input_dim, tissue_dim: GainImputer(
+        #     input_dim=input_dim, 
+        #     tissue_dim=tissue_dim,
+        #     gain_hypers=gain_hypers, 
+        #     train_hypers=train_hypers
+        # )
+        return lambda input_dim: GainImputer(
+            input_dim=input_dim,
             gain_hypers=gain_hypers, 
             train_hypers=train_hypers
         )
@@ -86,13 +91,16 @@ def create_imputer_factory(
     if name == "missForest":
         model_config = read_config(model["model_config"])
         missforest_hypers = MissForestHypers(model_config)
-        return lambda input_dim, tissue_dim: MissForestRImputer(missforest_hypers=missforest_hypers)
+        return lambda input_dim: MissForestRImputer(missforest_hypers=missforest_hypers)
+        # return lambda input_dim, tissue_dim: MissForestRImputer(missforest_hypers=missforest_hypers)
 
     if name == "global_mean":
-        return lambda input_dim, tissue_dim: GlobalMeanImputer()
+        return lambda input_dim: GlobalMeanImputer()
+        # return lambda input_dim, tissue_dim: GlobalMeanImputer()
 
     if name == "tissue_mean":
-        return lambda input_dim, tissue_dim: TissueMeanImputer()
+        return lambda input_dim: TissueMeanImputer()
+        # return lambda input_dim, tissue_dim: TissueMeanImputer()
 
     if name == "mice":
         raise NotImplementedError("MICE imputer is not yet implemented.")
@@ -135,7 +143,6 @@ def run_holdout(
 
             data_dir = Path(f"{builder.get_dataset_dir()}/miss_{int(miss_level * 100)}")
             data_dir.mkdir(exist_ok=True)
-            dataset_writer.save_data(data, data_dir)
             save_run_data(dataset_writer, builder, data, experiment_writer, miss_level, seed)
 
             evaluator = Evaluator(strategy="holdout", experiment_writer=experiment_writer)

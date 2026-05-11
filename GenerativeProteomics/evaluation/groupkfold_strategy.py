@@ -149,6 +149,7 @@ class GroupKFoldStrategy(EvaluationStrategy):
                 artificial_missing_mask=data.artificial_missing_mask,
                 group_ids=data.tissue[test_idx].cpu().numpy(),
                 group_mapping=data.tissue_mapping,
+                transpose=data.transpose,
             )
             
             experiment_writer.result_writer.set_results_dir(results_dir=fold_dir)

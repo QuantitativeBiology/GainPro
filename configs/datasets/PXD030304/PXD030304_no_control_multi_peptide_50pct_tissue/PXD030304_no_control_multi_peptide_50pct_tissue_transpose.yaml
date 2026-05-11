@@ -1,0 +1,3 @@
+dataset:
+  name: PXD030304
+  path: "../data/processed/PXD030304/PXD030304_no_control_multi_peptide_50pct_tissue/PXD030304_no_control_multi_peptide_50pct_tissue_transpose.csv"

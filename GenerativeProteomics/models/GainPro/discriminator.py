@@ -4,7 +4,7 @@ class Discriminator(nn.Module):
     def __init__(
         self,
         input_dim: int,
-        tissue_dim: int,
+        # tissue_dim: int,
         hidden_dim: int=None,
         num_hidden_layers: int=1,
     ) -> "Discriminator":
@@ -16,7 +16,8 @@ class Discriminator(nn.Module):
 
         self.layers = nn.ModuleList()
 
-        self.layers.append(nn.Linear(self.input_dim * 2 + tissue_dim, self.hidden_dim))
+        self.layers.append(nn.Linear(self.input_dim * 2, self.hidden_dim))
+        # self.layers.append(nn.Linear(self.input_dim * 2 + tissue_dim, self.hidden_dim))
         # The discriminator receives the imputed data from the generator, the sample's tissue
         # and the hint.
         # Input = concat(data_imputed, tissue, hint)
