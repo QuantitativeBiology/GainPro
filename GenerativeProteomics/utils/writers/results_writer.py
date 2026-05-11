@@ -29,32 +29,45 @@ class ResultWriter:
         pred_values: np.ndarray,
         observed_mask: np.ndarray,
         artificial_missing_mask: np.ndarray,
+        transpose: bool=False,
         fold_id: int=None,
         group_mapping: dict=None,
         group_ids=None
     ) -> None:
-        safe_group_mapping = group_mapping or {}
-        records = []
-        assert group_ids is None or len(group_ids) == len(sample_ids), \
-            f"group_ids ({len(group_ids)}) != sample_ids ({len(sample_ids)})"
-        for i, sample_id in enumerate(sample_ids):
-            for j, feature in enumerate(feature_names):
-                if group_ids is None:
-                    mapped_gid = None
-                else:
+        if transpose:
+            records = []
+            for i, sample_id in enumerate(sample_ids):
+                for j, feature in enumerate(feature_names):
                     raw_gid = group_ids[i]
-                    mapped_gid = safe_group_mapping.get(raw_gid, raw_gid)
+                    mapped_gid = group_mapping.get(raw_gid, raw_gid)
 
-                records.append({
-                    "fold": fold_id,
-                    "sample_id": sample_id,
-                    "feature": feature,
-                    "true_value": true_values[i, j],
-                    "predicted_value": pred_values[i, j],
-                    "observed_mask": int(observed_mask[i, j]),
-                    "artificial_missing_mask": int(artificial_missing_mask[i, j]),
-                    "group_id": mapped_gid,
-                })
+                    records.append({
+                        "fold": fold_id,
+                        "sample_id": sample_id,
+                        "feature": feature,
+                        "true_value": true_values[j, i],
+                        "predicted_value": pred_values[j, i],
+                        "observed_mask": int(observed_mask[j, i]),
+                        "artificial_missing_mask": int(artificial_missing_mask[j, i]),
+                        "group_id": mapped_gid,
+                    })
+        else:
+            records = []
+            for i, sample_id in enumerate(sample_ids):
+                for j, feature in enumerate(feature_names):
+                    raw_gid = group_ids[i]
+                    mapped_gid = group_mapping.get(raw_gid, raw_gid)
+
+                    records.append({
+                        "fold": fold_id,
+                        "sample_id": sample_id,
+                        "feature": feature,
+                        "true_value": true_values[i, j],
+                        "predicted_value": pred_values[i, j],
+                        "observed_mask": int(observed_mask[i, j]),
+                        "artificial_missing_mask": int(artificial_missing_mask[i, j]),
+                        "group_id": mapped_gid,
+                    })
 
         df = pd.DataFrame(records)
         if fold_id is not None:

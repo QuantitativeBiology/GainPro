@@ -17,36 +17,43 @@ class DatasetWriter:
         cls,
         data: Data,
         out_dir: Path,
+        transpose: bool,
     ) -> None:
+        if transpose:
+            index = data.feature_names
+            columns = data.sample_names
+        else:
+            index = data.sample_names
+            columns = data.feature_names
 
         cls._save_df(
             pd.DataFrame(
                 data.reference.detach().cpu().numpy(),
-                index=data.sample_names,
-                columns=data.feature_names
+                index=index,
+                columns=columns,
             ), 
             f"{out_dir}/reference.csv"
         )
         cls._save_df(
             pd.DataFrame(
                 data.missing.detach().cpu().numpy(),
-                index=data.sample_names,
-                columns=data.feature_names
+                index=index,
+                columns=columns,
             ), 
             f"{out_dir}/missing.csv"
         )
         cls._save_df(
             pd.DataFrame(
                 data.observed_mask.detach().cpu().numpy(),
-                index=data.sample_names,
-                columns=data.feature_names
+                index=index,
+                columns=columns,
             ),  
             f"{out_dir}/observed_mask.csv")
         cls._save_df(
             pd.DataFrame(
                 data.artificial_missing_mask.detach().cpu().numpy(),
-                index=data.sample_names,
-                columns=data.feature_names
+                index=index,
+                columns=columns,
             ),  
             f"{out_dir}/artificial_missing_mask.csv"
         )
