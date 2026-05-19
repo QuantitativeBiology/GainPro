@@ -1,0 +1,5 @@
+datasets:
+  PXD030304: ../data/raw/PXD030304.tsv
+  PXD008840: ../data/raw/PXD008840.tsv
+
+output: ../data/processed/PXD030304_PXD008840.csv
