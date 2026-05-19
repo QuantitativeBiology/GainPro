@@ -5,7 +5,7 @@ from typing import Dict
 
 from utils.data.helper import load_tsv
 from utils.helper import read_config
-from utils.config_parser import MergeConfig
+from GenerativeProteomics.utils.configs.config_parser import MergeConfig
 
 def load_datasets(
     dataset_paths: Dict[str, str],
