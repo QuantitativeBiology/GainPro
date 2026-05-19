@@ -1,9 +1,6 @@
 name: protogain
 
-hidden_dim:
+num_hidden_layers_generator: 3
+num_hidden_layers_discriminator: 2
 
-generator:
-  num_layers: 3
-
-discriminator:
-  num_layers: 2
+hidden_dim: 1024

@@ -5,7 +5,7 @@ import numpy as np
 from pathlib import Path
 from datetime import datetime
 
-from utils.helper import read_config
+from utils.helper import load_yaml
 from utils.paths import get_project_root
 from imputation_manager import ImputationManager
 from utils.data.dataset_builder import DatasetBuilder

@@ -1,7 +1,9 @@
 from pathlib import Path
 from datetime import datetime
 
-from utils.helper import read_config
+from utils.configs.model_config import GainConfig, MissForestConfig
+from utils.configs.training_config import GainTrainingConfig
+from utils.helper import load_benchmark, load_yaml
 from utils.paths import get_project_root
 
 from evaluation.evaluator import Evaluator
@@ -17,8 +19,8 @@ from wrappers.global_mean import GlobalMeanImputer
 from wrappers.tissue_mean import TissueMeanImputer
 from wrappers.missforest import MissForestRImputer
 
-from utils.train_hypers import TrainHypers
-from utils.model_hypers import GainHypers, MissForestHypers
+from utils.configs.training_config import GainTrainingConfig
+from utils.configs.model_config import GainConfig, MissForestConfig
 
 def build_dataset(
     dataset_path: Path, 
@@ -58,35 +60,25 @@ def needs_zero_fill(model_name: str) -> bool:
     return model_name == "protogain"
 
 def create_imputer_factory(
-    model: dict,
+    config,
     input_dim: int=None,
     # tissue_dim: int=None,
 ):
     """Return a zero-argument callable that produces a fresh imputer instance."""
-    name = model["name"]
+    name = config.name
+    print("Config class", config.__class__)
+    print("Config:", config)
 
     if name == "protogain":
-        model_config = read_config(model["model_config"])
-        train_config = read_config(model["train_config"])
-
-        gain_hypers = GainHypers(model_config)
-        train_hypers = TrainHypers(train_config)
-
-        # return lambda input_dim, tissue_dim: GainImputer(
-        #     input_dim=input_dim, 
-        #     tissue_dim=tissue_dim,
-        #     gain_hypers=gain_hypers, 
-        #     train_hypers=train_hypers
-        # )
         return lambda input_dim: GainImputer(
             input_dim=input_dim,
-            gain_hypers=gain_hypers, 
-            train_hypers=train_hypers
+            gain_hypers=GainConfig.model_validate(load_yaml(config.model_config_path)), 
+            training_hypers=GainTrainingConfig.model_validate(load_yaml(config.training_config_path))
         )
 
     if name == "missForest":
-        model_config = read_config(model["model_config"])
-        missforest_hypers = MissForestHypers(model_config)
+        model_config = MissForestConfig.model_validate(config["model_config"])
+        missforest_hypers = MissForestConfig(model_config)
         return lambda input_dim: MissForestRImputer(missforest_hypers=missforest_hypers)
         # return lambda input_dim, tissue_dim: MissForestRImputer(missforest_hypers=missforest_hypers)
 
@@ -143,12 +135,12 @@ def run_holdout(
     config_writer: ConfigWriter,
     dataset_writer: DatasetWriter,
 ):
-    strategy_cfg = benchmark_cfg["validation_strategy"][0]
-    n_runs = benchmark_cfg["n_runs"]
-    initial_seed = benchmark_cfg["initial_seed"]
-    fill_zeros = needs_zero_fill(model["name"])
+    strategy_cfg = benchmark_cfg.validation
+    n_runs = benchmark_cfg.n_runs
+    initial_seed = benchmark_cfg.initial_seed
+    fill_zeros = needs_zero_fill(model.name)
 
-    for miss_level in strategy_cfg["missingness_levels"]:
+    for miss_level in strategy_cfg.missing_levels:
         print(f"\nMissingness: {miss_level}")
         experiment_dir = model_dir / f"miss_{int(miss_level * 100)}"
         experiment_dir.mkdir(parents=True, exist_ok=True)
@@ -160,15 +152,15 @@ def run_holdout(
             run_dir = make_run_dir(experiment_dir, run, seed)
             experiment_writer = ExperimentWriter(run_dir)
 
-            snapshot_run_configs(
-                config_writer=config_writer,
-                benchmark_cfg=benchmark_cfg,
-                benchmark_cfg_path=benchmark_cfg_path.resolve(),
-                dataset_cfg=dataset_cfg,
-                dataset_cfg_path=dataset_cfg_path,
-                model=model,
-                out_dir=experiment_writer.cfg_dir,
-            )
+            # fix: snapshot_run_configs(
+            #     config_writer=config_writer,
+            #     benchmark_cfg=benchmark_cfg,
+            #     benchmark_cfg_path=benchmark_cfg_path.resolve(),
+            #     dataset_cfg=dataset_cfg,
+            #     dataset_cfg_path=dataset_cfg_path,
+            #     model=model,
+            #     out_dir=experiment_writer.cfg_dir,
+            # )
 
             builder, data = build_dataset(
                 dataset_path=Path(dataset_cfg["dataset"]["path"]), 
@@ -182,7 +174,7 @@ def run_holdout(
             save_run_data(dataset_writer, builder, data, experiment_writer, miss_level, seed)
 
             evaluator = Evaluator(strategy="holdout", experiment_writer=experiment_writer)
-            if model["name"] == "protogain":
+            if model.name == "protogain":
                 imputer_factory = create_imputer_factory(
                     model,
                     input_dim=len(data.feature_names)
@@ -206,16 +198,16 @@ def run_groupkfold(
     config_writer: ConfigWriter,
     dataset_writer: DatasetWriter,
 ):
-    strategy_cfg = benchmark_cfg["validation_strategy"][0]
-    n_runs = benchmark_cfg["n_runs"]
-    initial_seed = benchmark_cfg["initial_seed"]
+    strategy_cfg = benchmark_cfg.validation
+    n_runs = benchmark_cfg.n_runs
+    initial_seed = benchmark_cfg.initial_seed
 
-    miss_rate = strategy_cfg["miss_rate"]
+    miss_rate = strategy_cfg.miss_rate
 
-    num_folds = strategy_cfg["num_folds"]
-    holdout_tissues = strategy_cfg["holdout_tissues"]
+    num_folds = strategy_cfg.num_folds
+    holdout_tissues = strategy_cfg.holdout_tissues
 
-    fill_zeros = needs_zero_fill(model["name"])
+    fill_zeros = needs_zero_fill(model.name)
 
     for run in range(1, n_runs+1):
         print(f"\n============  Run {run}/{n_runs} ============")
@@ -243,7 +235,7 @@ def run_groupkfold(
         save_run_data(dataset_writer, builder, data, experiment_writer, miss_rate, seed)
 
         evaluator = Evaluator(strategy="groupkfold", experiment_writer=experiment_writer)
-        if model["name"] == "protogain":
+        if model.name == "protogain":
             imputer_factory = create_imputer_factory(
                 model,
                 input_dim=len(data.feature_names)
@@ -263,11 +255,16 @@ STRATEGY_RUNNERS = {
     "groupkfold": run_groupkfold,
 }
 
-def run_benchmark(benchmark_cfg_path: Path, dataset_cfg_path: Path):
-    benchmark_cfg = read_config(benchmark_cfg_path)
-    dataset_cfg = read_config(dataset_cfg_path)
+def run_benchmark(
+    benchmark_cfg_path: Path, 
+    dataset_cfg_path: Path
+) -> None:
+    benchmark_cfg, _ = load_benchmark(benchmark_cfg_path)
+    dataset_cfg = load_yaml(dataset_cfg_path)
 
-    validation_strategy = benchmark_cfg["validation_strategy"][0]["name"]
+    print("Benchmark config", benchmark_cfg)
+
+    validation_strategy = benchmark_cfg.validation.name
     strategy_runner = STRATEGY_RUNNERS.get(validation_strategy)
     if strategy_runner is None:
         raise ValueError(
@@ -282,9 +279,9 @@ def run_benchmark(benchmark_cfg_path: Path, dataset_cfg_path: Path):
     )
     benchmark_dir.mkdir(parents=True, exist_ok=True)
 
-    for model in benchmark_cfg["models"]:
-        print(f"\n{'='*50}\nModel: {model['name']}\n{'='*50}")
-        model_dir = benchmark_dir / model["name"]
+    for model in benchmark_cfg.models:
+        print(f"\n{'='*50}\nModel: {model.name}\n{'='*50}")
+        model_dir = benchmark_dir / model.name
         model_dir.mkdir(parents=True, exist_ok=True)
 
         strategy_runner(
