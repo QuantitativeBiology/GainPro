@@ -1,10 +1,13 @@
-import yaml
 from pathlib import Path
 from datetime import datetime
 
+from utils.helper import read_config
 from utils.paths import get_project_root
+
 from evaluation.evaluator import Evaluator
+
 from utils.data.dataset_builder import DatasetBuilder
+
 from utils.writers.config_writer import ConfigWriter
 from utils.writers.dataset_writer import DatasetWriter
 from utils.writers.experiment_writer import ExperimentWriter
@@ -16,13 +19,6 @@ from wrappers.missforest import MissForestRImputer
 
 from utils.train_hypers import TrainHypers
 from utils.model_hypers import GainHypers, MissForestHypers
-
-def read_config(
-    cfg_path: Path,
-    ) -> dict:
-    with open(cfg_path, 'r') as f:
-        cfg = yaml.safe_load(f)
-    return cfg
 
 def build_dataset(
     dataset_path: Path, 
@@ -110,11 +106,41 @@ def create_imputer_factory(
         "Expected one of: 'protogain', 'missForest', 'global_mean', 'tissue_mean', 'mice'."
     )
 
+def resolve_config_path(config_path: Path, base_config_path: Path) -> Path:
+    if config_path.is_absolute():
+        return config_path
+    return (base_config_path.parent / config_path).resolve()
+
+def snapshot_run_configs(
+    config_writer: ConfigWriter,
+    benchmark_cfg: dict,
+    benchmark_cfg_path: Path,
+    dataset_cfg: dict,
+    dataset_cfg_path: Path,
+    model: dict,
+    out_dir: Path,
+) -> None:
+    config_writer.snapshot_config(benchmark_cfg, "benchmark", out_dir)
+    config_writer.snapshot_config(dataset_cfg, "dataset", out_dir)
+
+    config_writer.snapshot_config_tree(config_path=benchmark_cfg_path, out_dir=out_dir)
+    config_writer.snapshot_config_tree(config_path=dataset_cfg_path, out_dir=out_dir)
+
+    for key in ("model_config", "train_config"):
+        config_value = model.get(key)
+        if config_value:
+            config_path = resolve_config_path(Path(config_value), benchmark_cfg_path)
+            config_writer.snapshot_config_tree(config_path=config_path, out_dir=out_dir)
+
+
 def run_holdout(
     benchmark_cfg: dict,
     dataset_cfg: dict,
     model: dict,
     model_dir: Path,
+    benchmark_cfg_path: Path,
+    dataset_cfg_path: Path,
+    config_writer: ConfigWriter,
     dataset_writer: DatasetWriter,
 ):
     strategy_cfg = benchmark_cfg["validation_strategy"][0]
@@ -128,11 +154,21 @@ def run_holdout(
         experiment_dir.mkdir(parents=True, exist_ok=True)
 
         for run in range(1, n_runs+1):
-            print(f"\n============  Run {run}/{n_runs} ============")
+            print(f"\n============  Run {run}/{n_runs} ============" )
             seed = initial_seed + (run - 1)
 
             run_dir = make_run_dir(experiment_dir, run, seed)
             experiment_writer = ExperimentWriter(run_dir)
+
+            snapshot_run_configs(
+                config_writer=config_writer,
+                benchmark_cfg=benchmark_cfg,
+                benchmark_cfg_path=benchmark_cfg_path.resolve(),
+                dataset_cfg=dataset_cfg,
+                dataset_cfg_path=dataset_cfg_path,
+                model=model,
+                out_dir=experiment_writer.cfg_dir,
+            )
 
             builder, data = build_dataset(
                 dataset_path=Path(dataset_cfg["dataset"]["path"]), 
@@ -165,6 +201,9 @@ def run_groupkfold(
     dataset_cfg: dict,
     model: dict,
     model_dir: Path,
+    benchmark_cfg_path: Path,
+    dataset_cfg_path: Path,
+    config_writer: ConfigWriter,
     dataset_writer: DatasetWriter,
 ):
     strategy_cfg = benchmark_cfg["validation_strategy"][0]
@@ -184,6 +223,16 @@ def run_groupkfold(
 
         run_dir = make_run_dir(model_dir, run, seed)
         experiment_writer = ExperimentWriter(run_dir)
+
+        snapshot_run_configs(
+            config_writer=config_writer,
+            benchmark_cfg=benchmark_cfg,
+            benchmark_cfg_path=benchmark_cfg_path,
+            dataset_cfg=dataset_cfg,
+            dataset_cfg_path=dataset_cfg_path,
+            model=model,
+            out_dir=experiment_writer.cfg_dir,
+        )
 
         builder, data = build_dataset(
             dataset_path=Path(dataset_cfg["dataset"]["path"]), 
@@ -233,11 +282,18 @@ def run_benchmark(benchmark_cfg_path: Path, dataset_cfg_path: Path):
     )
     benchmark_dir.mkdir(parents=True, exist_ok=True)
 
-    dataset_writer = DatasetWriter()
-
     for model in benchmark_cfg["models"]:
         print(f"\n{'='*50}\nModel: {model['name']}\n{'='*50}")
         model_dir = benchmark_dir / model["name"]
         model_dir.mkdir(parents=True, exist_ok=True)
 
-        strategy_runner(benchmark_cfg, dataset_cfg, model, model_dir, dataset_writer)
+        strategy_runner(
+            benchmark_cfg,
+            dataset_cfg,
+            model,
+            model_dir,
+            benchmark_cfg_path,
+            dataset_cfg_path,
+            ConfigWriter(),
+            DatasetWriter(),
+        )

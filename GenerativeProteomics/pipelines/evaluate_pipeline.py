@@ -5,26 +5,11 @@ import numpy as np
 from pathlib import Path
 from datetime import datetime
 
+from utils.helper import read_config
 from utils.paths import get_project_root
 from imputation_manager import ImputationManager
 from utils.data.dataset_builder import DatasetBuilder
 from utils.writers.experiment_writer import ExperimentWriter
-
-def read_config(
-    config_path: str
-) -> dict:
-    config_path = Path(config_path)
-
-    if not config_path.exists() or not config_path.is_file():
-        raise FileNotFoundError(errno.ENOENT, os.strerror(errno.ENOENT), config_path.name)
-    
-    try:
-        with open(config_path, 'r') as f:
-            config = yaml.safe_load(f)
-    except yaml.YAMLError:
-        raise yaml.YAMLError(f"{config_path} is an invalid YAML configuration file")
-    
-    return config
 
 def run_evaluate(
     strategy: str,
