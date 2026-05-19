@@ -4,8 +4,8 @@ from pathlib import Path
 from typing import Dict
 
 from utils.data.helper import load_tsv
-from utils.helper import read_config
-from GenerativeProteomics.utils.configs.config_parser import MergeConfig
+from utils.helper import load_yaml
+from utils.configs.config_parser import MergeConfig
 
 def load_datasets(
     dataset_paths: Dict[str, str],
@@ -48,7 +48,7 @@ def parse_args() -> argparse.Namespace:
 def main() -> None:
     args = parse_args()
 
-    config = read_config(Path(args.config))
+    config = load_yaml(Path(args.config))
     MergeConfig.model_validate(config)
 
     datasets = load_datasets(config["datasets"])
