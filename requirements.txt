@@ -1,11 +1,12 @@
 torch
 torchinfo
 numpy
-tqdm
 pandas
 scikit-learn
+tqdm
 optuna
 argparse
+pydantic
 psutil
 anndata
 polars
