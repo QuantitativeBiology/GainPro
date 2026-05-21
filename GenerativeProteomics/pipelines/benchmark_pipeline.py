@@ -1,26 +1,24 @@
+import logging
 from pathlib import Path
 from datetime import datetime
 
-from utils.configs.model_config import GainConfig, MissForestConfig
-from utils.configs.training_config import GainTrainingConfig
-from utils.helper import load_benchmark, load_yaml
-from utils.paths import get_project_root
+from utils.configs.dataset_config import DatasetConfig
+from utils.configs.benchmark_config import BenchmarkConfig
+from utils.configs.model_config import GainConfig, MissForestConfig, AutoEncoderConfig
 
-from evaluation.evaluator import Evaluator
+from imputation_manager import ImputationManager
+
+from utils.paths import get_project_root
+from utils.helper import load_benchmark, load_yaml, make_run_dir
 
 from utils.data.dataset_builder import DatasetBuilder
 
-from utils.writers.config_writer import ConfigWriter
+from evaluation.evaluator import Evaluator
+
 from utils.writers.dataset_writer import DatasetWriter
 from utils.writers.experiment_writer import ExperimentWriter
 
-from wrappers.gain import GainImputer
-from wrappers.global_mean import GlobalMeanImputer
-from wrappers.tissue_mean import TissueMeanImputer
-from wrappers.missforest import MissForestRImputer
-
-from utils.configs.training_config import GainTrainingConfig
-from utils.configs.model_config import GainConfig, MissForestConfig
+logger = logging.getLogger(__name__)
 
 def build_dataset(
     dataset_path: Path, 
@@ -32,20 +30,28 @@ def build_dataset(
     data = builder.build(fill_zeros=fill_zeros, seed=seed)
     return builder, data
 
-def make_run_dir(parent: Path, run: int, seed: int) -> Path:
-    timestamp = datetime.now().strftime("%Y-%m-%d_%H:%M:%S")
-    run_dir = parent / f"run_{run:03d}_seed_{seed}_{timestamp}"
-    run_dir.mkdir(parents=True, exist_ok=True)
-    return run_dir
+def needs_zero_fill(model_name: str) -> bool:
+    return model_name == "protogain"
 
-def save_run_data(
-    dataset_writer: DatasetWriter,
-    builder: DatasetBuilder,
-    data,
-    experiment_writer: ExperimentWriter,
-    miss_rate: float,
+def execute_run(
     seed: int,
-) -> None:
+    run_dir: Path,
+    model_cfg: GainConfig | MissForestConfig | AutoEncoderConfig,
+    dataset_path: Path,
+    miss_rate: float,
+    fill_zeros: bool,
+    evaluator_kwargs: dict,
+):
+    """Build dataset, create imputer, and evaluate — shared by all strategies."""
+    experiment_writer = ExperimentWriter(run_dir)
+
+    builder, data = build_dataset(
+        dataset_path=dataset_path,
+        miss_rate=miss_rate,
+        seed=seed,
+        fill_zeros=fill_zeros,
+    )
+    dataset_writer = DatasetWriter()
     dataset_writer.save_data(data, experiment_writer.data_dir, transpose=data.transpose)
     dataset_writer.save_data_metadata(
         original_missingness=builder.original_missingness,
@@ -56,199 +62,72 @@ def save_run_data(
         out_dir=experiment_writer.data_dir,
     )
 
-def needs_zero_fill(model_name: str) -> bool:
-    return model_name == "protogain"
-
-def create_imputer_factory(
-    config,
-    input_dim: int=None,
-    # tissue_dim: int=None,
-):
-    """Return a zero-argument callable that produces a fresh imputer instance."""
-    name = config.name
-    print("Config class", config.__class__)
-    print("Config:", config)
-
-    if name == "protogain":
-        return lambda input_dim: GainImputer(
-            input_dim=input_dim,
-            gain_hypers=GainConfig.model_validate(load_yaml(config.model_config_path)), 
-            training_hypers=GainTrainingConfig.model_validate(load_yaml(config.training_config_path))
-        )
-
-    if name == "missForest":
-        model_config = MissForestConfig.model_validate(config["model_config"])
-        missforest_hypers = MissForestConfig(model_config)
-        return lambda input_dim: MissForestRImputer(missforest_hypers=missforest_hypers)
-        # return lambda input_dim, tissue_dim: MissForestRImputer(missforest_hypers=missforest_hypers)
-
-    if name == "global_mean":
-        return lambda input_dim: GlobalMeanImputer()
-        # return lambda input_dim, tissue_dim: GlobalMeanImputer()
-
-    if name == "tissue_mean":
-        return lambda input_dim: TissueMeanImputer()
-        # return lambda input_dim, tissue_dim: TissueMeanImputer()
-
-    if name == "mice":
-        raise NotImplementedError("MICE imputer is not yet implemented.")
-
-    raise ValueError(
-        f"Unknown model '{name}'. "
-        "Expected one of: 'protogain', 'missForest', 'global_mean', 'tissue_mean', 'mice'."
-    )
-
-def resolve_config_path(config_path: Path, base_config_path: Path) -> Path:
-    if config_path.is_absolute():
-        return config_path
-    return (base_config_path.parent / config_path).resolve()
-
-def snapshot_run_configs(
-    config_writer: ConfigWriter,
-    benchmark_cfg: dict,
-    benchmark_cfg_path: Path,
-    dataset_cfg: dict,
-    dataset_cfg_path: Path,
-    model: dict,
-    out_dir: Path,
-) -> None:
-    config_writer.snapshot_config(benchmark_cfg, "benchmark", out_dir)
-    config_writer.snapshot_config(dataset_cfg, "dataset", out_dir)
-
-    config_writer.snapshot_config_tree(config_path=benchmark_cfg_path, out_dir=out_dir)
-    config_writer.snapshot_config_tree(config_path=dataset_cfg_path, out_dir=out_dir)
-
-    for key in ("model_config", "train_config"):
-        config_value = model.get(key)
-        if config_value:
-            config_path = resolve_config_path(Path(config_value), benchmark_cfg_path)
-            config_writer.snapshot_config_tree(config_path=config_path, out_dir=out_dir)
-
+    manager = ImputationManager(model_cfg=model_cfg, data=data)
+    evaluator = Evaluator(experiment_writer=experiment_writer, **evaluator_kwargs)
+    evaluator.evaluate(imputer_factory=manager.build, data=data)
 
 def run_holdout(
-    benchmark_cfg: dict,
-    dataset_cfg: dict,
-    model: dict,
-    model_dir: Path,
-    benchmark_cfg_path: Path,
-    dataset_cfg_path: Path,
-    config_writer: ConfigWriter,
-    dataset_writer: DatasetWriter,
-):
+    benchmark_cfg: BenchmarkConfig,
+    model_cfg: GainConfig | MissForestConfig | AutoEncoderConfig,
+    dataset_cfg: DatasetConfig,
+    benchmark_dir: Path,
+) -> None:
     strategy_cfg = benchmark_cfg.validation
-    n_runs = benchmark_cfg.n_runs
-    initial_seed = benchmark_cfg.initial_seed
-    fill_zeros = needs_zero_fill(model.name)
+    dataset_path = dataset_cfg.dataset_path
+    fill_zeros = needs_zero_fill(model_cfg.name)
 
     for miss_level in strategy_cfg.missing_levels:
-        print(f"\nMissingness: {miss_level}")
-        experiment_dir = model_dir / f"miss_{int(miss_level * 100)}"
+        logger.info(f"\n Missingness: {miss_level}")
+        experiment_dir = benchmark_dir / model_cfg.name / f"miss_{int(miss_level * 100)}"
         experiment_dir.mkdir(parents=True, exist_ok=True)
 
-        for run in range(1, n_runs+1):
-            print(f"\n============  Run {run}/{n_runs} ============" )
-            seed = initial_seed + (run - 1)
+        for run in range(1, benchmark_cfg.n_runs + 1):
+            logger.info(f"\n ============  Run {run}/{benchmark_cfg.n_runs} ============")
+            seed = benchmark_cfg.initial_seed + (run - 1)
 
-            run_dir = make_run_dir(experiment_dir, run, seed)
-            experiment_writer = ExperimentWriter(run_dir)
-
-            # fix: snapshot_run_configs(
-            #     config_writer=config_writer,
-            #     benchmark_cfg=benchmark_cfg,
-            #     benchmark_cfg_path=benchmark_cfg_path.resolve(),
-            #     dataset_cfg=dataset_cfg,
-            #     dataset_cfg_path=dataset_cfg_path,
-            #     model=model,
-            #     out_dir=experiment_writer.cfg_dir,
-            # )
-
-            builder, data = build_dataset(
-                dataset_path=Path(dataset_cfg["dataset"]["path"]), 
-                miss_rate=miss_level, 
-                seed=seed, 
+            execute_run(
+                seed=seed,
+                run_dir=make_run_dir(experiment_dir, run, seed),
+                model_cfg=model_cfg,
+                dataset_path=dataset_path,
+                miss_rate=miss_level,
                 fill_zeros=fill_zeros,
+                evaluator_kwargs={
+                    "strategy": "holdout", 
+                },
             )
-
-            data_dir = Path(f"{builder.get_dataset_dir()}/miss_{int(miss_level * 100)}")
-            data_dir.mkdir(exist_ok=True)
-            save_run_data(dataset_writer, builder, data, experiment_writer, miss_level, seed)
-
-            evaluator = Evaluator(strategy="holdout", experiment_writer=experiment_writer)
-            if model.name == "protogain":
-                imputer_factory = create_imputer_factory(
-                    model,
-                    input_dim=len(data.feature_names)
-                )
-            else:
-                imputer_factory = create_imputer_factory(model)
-            evaluator.evaluate(
-                imputer_factory=imputer_factory, 
-                data=data,
-                positive_label=1,
-            )
-
 
 def run_groupkfold(
-    benchmark_cfg: dict,
-    dataset_cfg: dict,
-    model: dict,
-    model_dir: Path,
-    benchmark_cfg_path: Path,
-    dataset_cfg_path: Path,
-    config_writer: ConfigWriter,
-    dataset_writer: DatasetWriter,
-):
+    benchmark_cfg: BenchmarkConfig,
+    model_cfg: GainConfig | MissForestConfig | AutoEncoderConfig,
+    dataset_cfg: DatasetConfig,
+    benchmark_dir: Path,
+) -> None:
     strategy_cfg = benchmark_cfg.validation
-    n_runs = benchmark_cfg.n_runs
-    initial_seed = benchmark_cfg.initial_seed
+    dataset_path = dataset_cfg.dataset_path
+    fill_zeros = needs_zero_fill(model_cfg.name)
 
-    miss_rate = strategy_cfg.miss_rate
+    for run in range(1, benchmark_cfg.n_runs + 1):
+        seed = benchmark_cfg.initial_seed + (run - 1)
+        for fold_id in range(1, strategy_cfg.num_folds + 1):
+            logger.info(f"\n ============  Run {run}/{benchmark_cfg.n_runs} ============")
 
-    num_folds = strategy_cfg.num_folds
-    holdout_tissues = strategy_cfg.holdout_tissues
-
-    fill_zeros = needs_zero_fill(model.name)
-
-    for run in range(1, n_runs+1):
-        print(f"\n============  Run {run}/{n_runs} ============")
-        seed = initial_seed + (run - 1)
-
-        run_dir = make_run_dir(model_dir, run, seed)
-        experiment_writer = ExperimentWriter(run_dir)
-
-        snapshot_run_configs(
-            config_writer=config_writer,
-            benchmark_cfg=benchmark_cfg,
-            benchmark_cfg_path=benchmark_cfg_path,
-            dataset_cfg=dataset_cfg,
-            dataset_cfg_path=dataset_cfg_path,
-            model=model,
-            out_dir=experiment_writer.cfg_dir,
-        )
-
-        builder, data = build_dataset(
-            dataset_path=Path(dataset_cfg["dataset"]["path"]), 
-            miss_rate=miss_rate, 
-            seed=seed, 
-            fill_zeros=fill_zeros,
-        )
-        save_run_data(dataset_writer, builder, data, experiment_writer, miss_rate, seed)
-
-        evaluator = Evaluator(strategy="groupkfold", experiment_writer=experiment_writer)
-        if model.name == "protogain":
-            imputer_factory = create_imputer_factory(
-                model,
-                input_dim=len(data.feature_names)
-            )
-        else:
-            imputer_factory = create_imputer_factory(model)
+            experiment_dir = benchmark_dir / model_cfg.name / f"fold_{fold_id}"
+            experiment_dir.mkdir(parents=True, exist_ok=True)
         
-        evaluator.evaluate(
-            imputer_factory=imputer_factory,
-            data=data,
-            num_folds=num_folds,
-            holdout_tissues=holdout_tissues,
-        )
+            execute_run(
+                seed=seed,
+                run_dir=make_run_dir(experiment_dir, run, seed),
+                model_cfg=model_cfg,
+                dataset_path=dataset_path,
+                miss_rate=strategy_cfg.miss_rate,
+                fill_zeros=fill_zeros,
+                evaluator_kwargs={
+                    "strategy": "groupkfold",
+                    "num_folds": strategy_cfg.num_folds,
+                    "holdout_tissues": strategy_cfg.holdout_tissues,
+                },
+            )
 
 STRATEGY_RUNNERS = {
     "holdout": run_holdout,
@@ -260,9 +139,7 @@ def run_benchmark(
     dataset_cfg_path: Path
 ) -> None:
     benchmark_cfg, _ = load_benchmark(benchmark_cfg_path)
-    dataset_cfg = load_yaml(dataset_cfg_path)
-
-    print("Benchmark config", benchmark_cfg)
+    dataset_cfg = DatasetConfig.model_validate(load_yaml(dataset_cfg_path))
 
     validation_strategy = benchmark_cfg.validation.name
     strategy_runner = STRATEGY_RUNNERS.get(validation_strategy)
@@ -272,7 +149,7 @@ def run_benchmark(
             f"Available strategies: {list(STRATEGY_RUNNERS)}."
         )
 
-    dataset_name = Path(dataset_cfg["dataset"]["path"]).stem
+    dataset_name = dataset_cfg.dataset_path.stem
     timestamp = datetime.now().strftime("%Y-%m-%d_%H:%M:%S")
     benchmark_dir = (
         get_project_root() / "experiments/benchmark" / dataset_name / f"benchmark_{timestamp}"
@@ -280,17 +157,11 @@ def run_benchmark(
     benchmark_dir.mkdir(parents=True, exist_ok=True)
 
     for model in benchmark_cfg.models:
-        print(f"\n{'='*50}\nModel: {model.name}\n{'='*50}")
-        model_dir = benchmark_dir / model.name
-        model_dir.mkdir(parents=True, exist_ok=True)
+        logger.info(f"\n{'='*50}\nModel: {model.name}\n{'='*50}")
 
         strategy_runner(
-            benchmark_cfg,
-            dataset_cfg,
-            model,
-            model_dir,
-            benchmark_cfg_path,
-            dataset_cfg_path,
-            ConfigWriter(),
-            DatasetWriter(),
+            benchmark_cfg=benchmark_cfg,
+            benchmark_dir=benchmark_dir,
+            model_cfg=model,
+            dataset_cfg=dataset_cfg,
         )

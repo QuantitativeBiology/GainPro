@@ -1,6 +1,7 @@
 import yaml
 import logging
 from pathlib import Path
+from datetime import datetime
 
 from models.GainPro.gain import Gain
 from models.AutoEncoder.autoencoder import AutoEncoder
@@ -42,11 +43,11 @@ def load_benchmark(cfg_path: Path):
     for m in cfg.models:
         registry_entry = MODEL_REGISTRY[m.name]
 
-        model_raw = load_yaml(m.model_config_path)
+        model_raw = load_yaml(m.model_cfg_path)
         model_cfg = registry_entry["model_config"].model_validate(model_raw)
 
         if m.name in ("protogain", "autoencoder"):
-            training_raw = load_yaml(m.training_config_path)
+            training_raw = load_yaml(m.training_cfg_path)
 
         resolved_models.append({
             "name": m.name,
@@ -55,3 +56,13 @@ def load_benchmark(cfg_path: Path):
             "model_class": registry_entry["model"],
         })
     return cfg, resolved_models
+
+def make_run_dir(
+    parent: Path, 
+    run: int, 
+    seed: int,
+) -> Path:
+    timestamp = datetime.now().strftime("%Y-%m-%d_%H:%M:%S")
+    run_dir = parent / f"run_{run:03d}_seed_{seed}_{timestamp}"
+    run_dir.mkdir(parents=True, exist_ok=True)
+    return run_dir
