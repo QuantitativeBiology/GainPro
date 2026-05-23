@@ -1,10 +1,14 @@
 import os
 import errno
+import logging
 import numpy as np
 import pandas as pd
 from pathlib import Path
 
+
 from utils.data.dataset import Data
+from utils.configs.dataset_config import DatasetConfig
+from utils.data.normalizer_registry import build_normalizer
 from utils.data.helper import (
     load_csv,
     load_tsv,
@@ -16,22 +20,29 @@ from utils.data.helper import (
     compute_missing_rate,
 )
 
+logger = logging.getLogger(__name__)
+
 class DatasetBuilder:
     def __init__(
-        self, 
-        dataset_path: Path,
+        self,
+        cfg: DatasetConfig,
         miss_rate: float=0.0,
     ) -> "DatasetBuilder":
-        if not dataset_path.exists():
+        if not cfg.dataset_path.exists():
             raise FileNotFoundError(errno.ENOENT, os.strerror(errno.ENOENT), self.dataset_path.name)
-        self.dataset_path = dataset_path
+        self.dataset_path = cfg.dataset_path
         self.dataset_name = self.dataset_path.stem
 
         self.load_dataset()
-        self.transpose = "tissue" in self.df.index
 
-        self.clean()
-        self.log_transform()
+        # Matrix: samples x (proteins + tissue)
+        # Transposed matrix: (proteins + tissue) x samples
+        self.transposed = "tissue" in self.df.index
+        self.extract_tissue_labels()
+
+        if cfg.log_transform:
+            self.log2p1_transform()
+        self.normalizer = build_normalizer(cfg.normalizer)
 
         self.reference = None
         self.missing = None
@@ -50,26 +61,33 @@ class DatasetBuilder:
         elif self.dataset_path.suffix == ".tsv":
             self.df = load_tsv_with_condition(self.dataset_path)
         else:
-            raise ValueError("Invalid file format. Valid formats: csv, tsv and h5ad.") 
+            raise ValueError(
+                "Invalid file format. " \
+                "Valid formats: csv, tsv and h5ad."
+            ) 
 
     def get_dataset_dir(self) -> Path:
         return self.dataset_path.parent
     
-    def clean(self) -> None:
-        if "tissue" in self.df.columns:
-            # Matrix: (samples x proteins)
-            cat = self.df["tissue"].astype("category")
-            self.tissue = cat.cat.codes
-            self.tissue_mapping = dict(enumerate(cat.cat.categories))
-            self.df = self.df.drop(columns=["tissue"])
-        if "tissue" in self.df.index:
-            # Transpose matrix: (proteins x samples)
-            cat = self.df.loc["tissue"].astype("category")
-            self.tissue = cat.cat.codes
-            self.tissue_mapping = dict(enumerate(cat.cat.categories))
-            self.df = self.df.drop(index=["tissue"])
+    def extract_tissue_labels(self) -> None:
+        if self.transposed:
+            self._extract_tissue_from_index()
+        else:
+            self._extract_tissue_from_columns()
 
-    def log_transform(self) -> None:
+    def _extract_tissue_from_columns(self) -> None:
+        cat = self.df["tissue"].astype("category")
+        self.tissue = cat.cat.codes
+        self.tissue_mapping = dict(enumerate(cat.cat.categories))
+        self.df = self.df.drop(columns=["tissue"])
+
+    def _extract_tissue_from_index(self) -> None:
+        cat = self.df.loc["tissue"].astype("category")
+        self.tissue = cat.cat.codes
+        self.tissue_mapping = dict(enumerate(cat.cat.categories))
+        self.df = self.df.drop(index=["tissue"])
+
+    def log2p1_transform(self) -> None:
         values = self.df.values.astype(float)
         values_transformed = np.log2(values + 1)
         self.df = pd.DataFrame(
@@ -85,10 +103,8 @@ class DatasetBuilder:
     ) -> Data:
         self.observed_mask = compute_observed_mask(self.df)
 
-        # - Normalize proteins between [0,1] -
-        min_norm = self.df[self.observed_mask].min(axis=0) # min protein value
-        max_norm = self.df[self.observed_mask].max(axis=0) # max protein value
-        X_norm = (self.df[self.observed_mask] - min_norm) / (max_norm - min_norm)
+        self.normalizer.fit(self.df, self.observed_mask)
+        X_norm = self.normalizer.transform(self.df)
 
         self.reference = X_norm
         self.missing = induce_missing(df=self.reference, seed=seed, miss_rate=self.miss_rate, restrict_to_observed=False)
@@ -96,10 +112,11 @@ class DatasetBuilder:
         self.original_missingness = compute_missing_rate(self.df)
         self.current_missingness = compute_missing_rate(self.missing)
 
-        print("Dataset shape:", self.reference.shape)
-        print(f"Original missing rate: {self.original_missingness:.2%}")
-        print(f"Current missing rate: {self.current_missingness:.2%}")
-        print("\n")
+        logger.info(
+            f"\n Dataset shape: {self.reference.shape}"
+            f"\n Original missing rate: {self.original_missingness:.2%}"
+            f"\n Current missing rate: {self.current_missingness:.2%}"
+        )
 
         self.artificial_missing_mask = compute_evaluation_mask(
             reference_df=self.df,
@@ -117,8 +134,7 @@ class DatasetBuilder:
             artificial_missing_mask=self.artificial_missing_mask,
             tissue=self.tissue,
             tissue_mapping=self.tissue_mapping,
-            transpose=self.transpose,
-            min_norm=min_norm,
-            max_norm=max_norm,
+            transpose=self.transposed,
+            normalizer=self.normalizer,
         )
         return data

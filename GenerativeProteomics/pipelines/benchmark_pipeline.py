@@ -3,6 +3,7 @@ from pathlib import Path
 from datetime import datetime
 
 from utils.configs.dataset_config import DatasetConfig
+from utils.configs.dataset_config import DatasetConfig
 from utils.configs.benchmark_config import BenchmarkConfig
 from utils.configs.model_config import GainConfig, MissForestConfig, AutoEncoderConfig
 
@@ -20,16 +21,6 @@ from utils.writers.experiment_writer import ExperimentWriter
 
 logger = logging.getLogger(__name__)
 
-def build_dataset(
-    dataset_path: Path, 
-    miss_rate: float,
-    seed: int, 
-    fill_zeros: bool,
-):
-    builder = DatasetBuilder(dataset_path, miss_rate=miss_rate)
-    data = builder.build(fill_zeros=fill_zeros, seed=seed)
-    return builder, data
-
 def needs_zero_fill(model_name: str) -> bool:
     return model_name == "protogain"
 
@@ -37,20 +28,16 @@ def execute_run(
     seed: int,
     run_dir: Path,
     model_cfg: GainConfig | MissForestConfig | AutoEncoderConfig,
-    dataset_path: Path,
+    dataset_cfg: DatasetConfig,
     miss_rate: float,
     fill_zeros: bool,
     evaluator_kwargs: dict,
-):
-    """Build dataset, create imputer, and evaluate — shared by all strategies."""
+) -> None:
     experiment_writer = ExperimentWriter(run_dir)
 
-    builder, data = build_dataset(
-        dataset_path=dataset_path,
-        miss_rate=miss_rate,
-        seed=seed,
-        fill_zeros=fill_zeros,
-    )
+    builder = DatasetBuilder(cfg=dataset_cfg, miss_rate=miss_rate)
+    data = builder.build(fill_zeros=fill_zeros, seed=seed)
+
     dataset_writer = DatasetWriter()
     dataset_writer.save_data(data, experiment_writer.data_dir, transpose=data.transpose)
     dataset_writer.save_data_metadata(
@@ -73,7 +60,6 @@ def run_holdout(
     benchmark_dir: Path,
 ) -> None:
     strategy_cfg = benchmark_cfg.validation
-    dataset_path = dataset_cfg.dataset_path
     fill_zeros = needs_zero_fill(model_cfg.name)
 
     for miss_level in strategy_cfg.missing_levels:
@@ -89,7 +75,7 @@ def run_holdout(
                 seed=seed,
                 run_dir=make_run_dir(experiment_dir, run, seed),
                 model_cfg=model_cfg,
-                dataset_path=dataset_path,
+                dataset_cfg=dataset_cfg,
                 miss_rate=miss_level,
                 fill_zeros=fill_zeros,
                 evaluator_kwargs={
@@ -104,7 +90,6 @@ def run_groupkfold(
     benchmark_dir: Path,
 ) -> None:
     strategy_cfg = benchmark_cfg.validation
-    dataset_path = dataset_cfg.dataset_path
     fill_zeros = needs_zero_fill(model_cfg.name)
 
     for run in range(1, benchmark_cfg.n_runs + 1):
@@ -119,7 +104,7 @@ def run_groupkfold(
                 seed=seed,
                 run_dir=make_run_dir(experiment_dir, run, seed),
                 model_cfg=model_cfg,
-                dataset_path=dataset_path,
+                dataset_cfg=dataset_cfg,
                 miss_rate=strategy_cfg.miss_rate,
                 fill_zeros=fill_zeros,
                 evaluator_kwargs={

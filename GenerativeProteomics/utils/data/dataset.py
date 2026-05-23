@@ -1,5 +1,8 @@
 import torch
+import numpy as np
 import pandas as pd
+
+from utils.data.normalizer import Normalizer
 
 class Data:
     def __init__(
@@ -8,8 +11,8 @@ class Data:
         missing: pd.DataFrame,
         observed_mask: pd.DataFrame,
         artificial_missing_mask: pd.DataFrame,
-        min_norm: pd.DataFrame,
-        max_norm: pd.DataFrame,
+        normalizer: Normalizer,
+        log_transform: bool,
         transpose: bool=False,
         tissue: pd.DataFrame=None,
         tissue_mapping: dict=None,
@@ -28,6 +31,10 @@ class Data:
         if tissue_mapping is not None:
             self.tissue_mapping = tissue_mapping
 
+        self.num_samples = len(self.sample_names)
+        self.num_features = len(self.feature_names)
+        self.input_dim = reference.shape[1]
+
         self.missing = torch.from_numpy(missing.values).to(self.device)
         self.reference = torch.from_numpy(reference.values).to(self.device)
         self.observed_mask = torch.from_numpy(observed_mask.values).to(self.device)
@@ -35,8 +42,19 @@ class Data:
         self.tissue = torch.from_numpy(tissue.values.copy()).to(self.device)
         self.tissue_mapping = tissue_mapping
 
-        # Original minimum and maximum values of the dataset before normalization.
-        # These are stored so normalized values can later be restored to the
-        # original data range (inverse min-max transformation).
-        self.min_norm = min_norm
-        self.max_norm = max_norm
+        self.normalizer = normalizer
+        self.log_transform = log_transform
+
+    def denormalize(
+        self,
+        values: np.ndarray,
+    ) -> np.ndarray:
+        return self.normalizer.inverse_transform(values)
+    
+    def _inverse_log2p1(
+        self,
+        x: np.ndarray,
+    ) -> np.ndarray:
+        """Reverse log2(x + 1) transformation."""
+        x_log = np.power(2, x) - 1
+        return x_log

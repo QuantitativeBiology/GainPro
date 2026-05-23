@@ -1,4 +1,5 @@
 import torch
+import logging
 import numpy as np
 from datetime import datetime
 
@@ -7,6 +8,7 @@ from wrappers.gain import GainImputer
 from utils.writers.experiment_writer import ExperimentWriter
 from evaluation.evaluation_strategy import EvaluationStrategy
 
+logger = logging.getLogger(__name__)
 
 class HoldoutStrategy(EvaluationStrategy):
     def run(
@@ -14,7 +16,7 @@ class HoldoutStrategy(EvaluationStrategy):
         imputer_factory,
         data: Data,
         experiment_writer: ExperimentWriter,
-        positive_label: int,
+        positive_label: int=1,
     ) -> None:
         evaluation_holdout_dir = experiment_writer.evaluation_dir / "holdout"
         evaluation_holdout_dir.mkdir(parents=True, exist_ok=True)
@@ -24,40 +26,39 @@ class HoldoutStrategy(EvaluationStrategy):
         
         observed_mask = data.observed_mask.detach().cpu().numpy()
         artificial_mask = data.artificial_missing_mask.detach().cpu().numpy()
+        mask_observed_tensor = torch.tensor(observed_mask, device=data.device)
         
-        mask_train = ~(artificial_mask)
+        mask_train = (observed_mask == True) & (artificial_mask != True)
         mask_train_tensor = torch.tensor(mask_train, device=data.device)
         mask_eval = (artificial_mask == True)
         mask_eval_tensor = torch.tensor(mask_eval, device=data.device)
         
-        x_train = data.reference.detach()
         x_true = data.reference.detach().cpu().numpy()
         x_true = np.nan_to_num(x_true, nan=0)
+        x_true_tensor = torch.tensor(x_true, device=data.device, dtype=torch.float32)
         x_missing = data.missing.detach()
         
-        input_dim = data.reference.shape[1]
-        tissue_dim = len(data.tissue_mapping)
-        # imputer = imputer_factory(input_dim, tissue_dim)
-        imputer = imputer_factory(input_dim)
+        imputer = imputer_factory()
         experiment_writer.metadata_writer.set_start_time(datetime.now())
 
         imputer.train(
-            data=data,
-            x_train=x_train,
+            x_train=x_missing,
+            x_true=x_true_tensor,
             mask_train=mask_train_tensor,
             experiment_writer=experiment_writer,
         )
+        mask_impute = (mask_eval == True) | (observed_mask == False) # impute artificial hidden entries and original missing entries
+        mask_impute_tensor = torch.tensor(mask_impute, device=data.device)
         x_pred = imputer.impute(
-            data=data,
             x_missing=x_missing,
-            mask_eval=mask_eval_tensor,
+            mask=mask_impute_tensor,
         )
         experiment_writer.metadata_writer.set_end_time(datetime.now())
 
         if isinstance(imputer, GainImputer):
             discriminator_precision_recall = imputer.evaluate_discriminator(
-                data=data,
                 x_missing=x_missing, 
+                mask_observed=mask_observed_tensor,
                 mask_eval=mask_eval_tensor,
                 positive_label=positive_label, 
             )
@@ -66,26 +67,28 @@ class HoldoutStrategy(EvaluationStrategy):
             )
 
         rmse = self._compute_rmse(x_true, x_pred, mask_eval)
-        print("RMSE:", rmse)
-        
-        max_norm = data.max_norm.values
-        min_norm = data.min_norm.values
-        x_pred_denorm = self._denormalize(x_pred, max_norm, min_norm)
-        x_true_denorm = self._denormalize(x_true, max_norm, min_norm)
-        
-        x_pred_log2p1_inverse = self._inverse_log2p1(x_pred_denorm)
-        x_true_log2p1_inverse = self._inverse_log2p1(x_true_denorm)
-        x_true_log2p1_inverse = np.where(
-            observed_mask == 0, 
-            np.nan, 
-            x_true_log2p1_inverse,
-        )
+        logging.info(f"RMSE: {rmse}")
+        # Sanity check on training data
+        train_rmse = self._compute_rmse(x_true, x_pred, mask_train)
+        logger.debug(f"RMSE on training data: {train_rmse}")
+
+        x_pred_denorm = data.denormalize(x_pred)
+        x_true_denorm = data.denormalize(x_true)
+
+        if data.log_transform:
+            x_true_out = data._inverse_log2p1(x_true_denorm)
+            x_pred_out = data._inverse_log2p1(x_pred_denorm)
+        else:
+            x_true_out = x_true_denorm
+            x_pred_out = x_pred_denorm
+
+        x_true_out = np.where(observed_mask == 0, np.nan, x_true_out,)
         
         experiment_writer.result_writer.save_predictions(
             sample_ids=data.sample_names,
             feature_names=data.feature_names,
-            true_values=x_true_log2p1_inverse,
-            pred_values=x_pred_log2p1_inverse,
+            true_values=x_true_out,
+            pred_values=x_pred_out,
             observed_mask=data.observed_mask,
             artificial_missing_mask=data.artificial_missing_mask,
             group_ids=data.tissue.cpu().numpy(),
