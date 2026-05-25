@@ -4,6 +4,7 @@ data/raw
 data/splits
 data/breast
 todo.md
+GenerativeProteomics/lightning_logs
 .DS_Store
 
 # Byte-compiled / optimized / DLL files
