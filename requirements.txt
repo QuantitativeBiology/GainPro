@@ -17,3 +17,7 @@ datashader
 umap-learn
 seaborn
 missingpy
+pytorch-lightning
+tensorboard
+setuptools
+pyarrow
