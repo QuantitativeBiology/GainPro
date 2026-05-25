@@ -21,22 +21,21 @@ from utils.writers.experiment_writer import ExperimentWriter
 
 logger = logging.getLogger(__name__)
 
-def needs_zero_fill(model_name: str) -> bool:
-    return model_name in ("protogain", "autoencoder")
-
 def execute_run(
     seed: int,
     run_dir: Path,
     model_cfg: GainConfig | MissForestConfig | AutoEncoderConfig,
     dataset_cfg: DatasetConfig,
     miss_rate: float,
-    fill_zeros: bool,
     evaluator_kwargs: dict,
 ) -> None:
     experiment_writer = ExperimentWriter(run_dir)
 
+    manager = ImputationManager(model_cfg=model_cfg)
+
     builder = DatasetBuilder(cfg=dataset_cfg, miss_rate=miss_rate)
-    data = builder.build(fill_zeros=fill_zeros, seed=seed)
+    data = builder.build(fill_zeros=manager.require_zero_fill, seed=seed)
+    manager.set_data(data)
 
     dataset_writer = DatasetWriter()
     dataset_writer.save_data(data, experiment_writer.data_dir, transpose=data.transpose)
@@ -48,8 +47,7 @@ def execute_run(
         seed=seed,
         out_dir=experiment_writer.data_dir,
     )
-
-    manager = ImputationManager(model_cfg=model_cfg, data=data)
+    
     evaluator = Evaluator(experiment_writer=experiment_writer, **evaluator_kwargs)
     evaluator.evaluate(imputer_factory=manager.build, data=data)
 
@@ -60,7 +58,6 @@ def run_holdout(
     benchmark_dir: Path,
 ) -> None:
     strategy_cfg = benchmark_cfg.validation
-    fill_zeros = needs_zero_fill(model_cfg.name)
     logger.debug(f"\n Model name: {model_cfg.name}")
 
     for miss_level in strategy_cfg.missing_levels:
@@ -78,7 +75,6 @@ def run_holdout(
                 model_cfg=model_cfg,
                 dataset_cfg=dataset_cfg,
                 miss_rate=miss_level,
-                fill_zeros=fill_zeros,
                 evaluator_kwargs={
                     "strategy": "holdout", 
                 },
@@ -91,7 +87,6 @@ def run_groupkfold(
     benchmark_dir: Path,
 ) -> None:
     strategy_cfg = benchmark_cfg.validation
-    fill_zeros = needs_zero_fill(model_cfg.name)
 
     for run in range(1, benchmark_cfg.n_runs + 1):
         seed = benchmark_cfg.initial_seed + (run - 1)
@@ -107,7 +102,6 @@ def run_groupkfold(
                 model_cfg=model_cfg,
                 dataset_cfg=dataset_cfg,
                 miss_rate=strategy_cfg.miss_rate,
-                fill_zeros=fill_zeros,
                 evaluator_kwargs={
                     "strategy": "groupkfold",
                     "num_folds": strategy_cfg.num_folds,
@@ -142,12 +136,12 @@ def run_benchmark(
     )
     benchmark_dir.mkdir(parents=True, exist_ok=True)
 
-    for model in benchmark_cfg.models:
-        logger.info(f"\n{'='*50}\nModel: {model.name}\n{'='*50}")
+    for model_cfg in benchmark_cfg.models:
+        logger.info(f"\n{'='*50}\nModel: {model_cfg.name}\n{'='*50}")
 
         strategy_runner(
             benchmark_cfg=benchmark_cfg,
             benchmark_dir=benchmark_dir,
-            model_cfg=model,
+            model_cfg=model_cfg,
             dataset_cfg=dataset_cfg,
         )
