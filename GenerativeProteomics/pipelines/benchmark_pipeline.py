@@ -22,7 +22,7 @@ from utils.writers.experiment_writer import ExperimentWriter
 logger = logging.getLogger(__name__)
 
 def needs_zero_fill(model_name: str) -> bool:
-    return model_name == "protogain"
+    return model_name in ("protogain", "autoencoder")
 
 def execute_run(
     seed: int,
@@ -61,6 +61,7 @@ def run_holdout(
 ) -> None:
     strategy_cfg = benchmark_cfg.validation
     fill_zeros = needs_zero_fill(model_cfg.name)
+    logger.debug(f"\n Model name: {model_cfg.name}")
 
     for miss_level in strategy_cfg.missing_levels:
         logger.info(f"\n Missingness: {miss_level}")

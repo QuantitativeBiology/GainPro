@@ -13,5 +13,6 @@ class SchedulerConfig(BaseModel):
 
 class AutoEncoderTrainingConfig(BaseModel):
     num_epochs: int
+    batch_size: int
     lr: float
     scheduler: SchedulerConfig

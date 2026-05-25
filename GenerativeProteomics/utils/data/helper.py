@@ -1,3 +1,5 @@
+import torch
+from typing import List
 import numpy as np
 import pandas as pd
 import anndata as ad
@@ -216,3 +218,11 @@ def generate_hint(
     reveal = np.random.binomial(1, hint_rate, observed_mask.shape)  # 1 = reveal this entry
     hint = reveal * observed_mask + (1 - reveal) * 0.5
     return hint
+
+def convert_tensors_dtype(
+    tensor: torch.Tensor | List[torch.Tensor],
+    dtype: torch.dtype,
+) -> List[torch.Tensor]:
+    if isinstance(tensor, list):
+        return [t.to(dtype) for t in tensor]
+    return tensor.to(dtype) 
