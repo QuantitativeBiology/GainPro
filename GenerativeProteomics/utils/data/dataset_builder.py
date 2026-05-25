@@ -40,7 +40,8 @@ class DatasetBuilder:
         self.transposed = "tissue" in self.df.index
         self.extract_tissue_labels()
 
-        if cfg.log_transform:
+        self.log_transform = cfg.log_transform
+        if self.log_transform:
             self.log2p1_transform()
         self.normalizer = build_normalizer(cfg.normalizer)
 
@@ -136,5 +137,6 @@ class DatasetBuilder:
             tissue_mapping=self.tissue_mapping,
             transpose=self.transposed,
             normalizer=self.normalizer,
+            log_transform=self.log_transform,
         )
         return data
