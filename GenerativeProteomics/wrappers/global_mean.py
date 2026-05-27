@@ -51,7 +51,7 @@ class GlobalMeanImputer(Imputer):
         x_true_val: Optional[torch.Tensor],
         mask_val: Optional[torch.Tensor],
     ) -> None:
-        _, _, _, _, _, _ = x_true, mask_train, x_val, x_true_val, mask_val
+        _, _, _, _, _ = x_true, mask_train, x_val, x_true_val, mask_val
         _ = experiment_writer
         self._compute_protein_means(values=x_train.detach().cpu().numpy())
     
