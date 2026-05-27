@@ -16,7 +16,6 @@ def main() -> None:
         force=True,
     )
     logger = logging.getLogger()
-    print(logger.level)
 
     args.func(args)
 
