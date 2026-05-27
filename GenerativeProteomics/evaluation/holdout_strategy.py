@@ -104,8 +104,8 @@ class HoldoutStrategy(EvaluationStrategy):
         x_true_denorm = data.denormalize(x_true)
 
         if data.log_transform:
-            x_true_out = data._inverse_log2p1(x_true_denorm)
-            x_pred_out = data._inverse_log2p1(x_pred_denorm)
+            x_true_out = data.inverse_log2p1(x_true_denorm)
+            x_pred_out = data.inverse_log2p1(x_pred_denorm)
         else:
             x_true_out = x_true_denorm
             x_pred_out = x_pred_denorm

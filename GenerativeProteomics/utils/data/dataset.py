@@ -51,7 +51,7 @@ class Data:
     ) -> np.ndarray:
         return self.normalizer.inverse_transform(values)
     
-    def _inverse_log2p1(
+    def inverse_log2p1(
         self,
         x: np.ndarray,
     ) -> np.ndarray:
