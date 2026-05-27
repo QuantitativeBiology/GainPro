@@ -1,27 +1,30 @@
 import yaml
-import logging
 from pathlib import Path
 from datetime import datetime
 
-from models.GainPro.gain import Gain
-from models.AutoEncoder.autoencoder import AutoEncoder
 from utils.configs.benchmark_config import BenchmarkConfig
-from utils.configs.model_config import GainConfig, AutoEncoderConfig
+from utils.configs.model_config import (
+    GainConfig, 
+    AutoEncoderConfig, 
+    MissForestConfig,
+    GlobalMeanConfig,
+)
 from utils.configs.training_config import GainTrainingConfig, AutoEncoderTrainingConfig
-
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
 
 MODEL_REGISTRY = {
     "protogain": {
-        "model": Gain,
         "model_config": GainConfig,
         "training_config": GainTrainingConfig,
     },
     "autoencoder": {
-        "model": AutoEncoder,
         "model_config": AutoEncoderConfig,
         "training_config": AutoEncoderTrainingConfig,
+    },
+    "missforest": {
+        "model_config": MissForestConfig,
+    },
+    "global_mean": {
+        "model_config": GlobalMeanConfig,
     },
 }
 
@@ -31,31 +34,23 @@ def load_yaml(cfg_path: Path):
 
     with cfg_path.open("r", encoding="utf-8") as f:
         try:
-            return yaml.safe_load(f)
+            return yaml.safe_load(f) or {}
         except yaml.YAMLError as e:
             raise yaml.YAMLError(f"Invalid YAML configuration file '{cfg_path}': {e}") from e
 
-def load_benchmark(cfg_path: Path):
+def load_benchmark(cfg_path: Path) -> BenchmarkConfig:
     raw = load_yaml(cfg_path)
     cfg = BenchmarkConfig.model_validate(raw)
 
-    resolved_models = []
+    # Validate configuration files
     for m in cfg.models:
-        registry_entry = MODEL_REGISTRY[m.name]
-
-        model_raw = load_yaml(m.model_cfg_path)
-        model_cfg = registry_entry["model_config"].model_validate(model_raw)
-
-        if m.name in ("protogain", "autoencoder"):
-            training_raw = load_yaml(m.training_cfg_path)
-
-        resolved_models.append({
-            "name": m.name,
-            "model_cfg": model_cfg,
-            "training_cfg": training_raw,
-            "model_class": registry_entry["model"],
-        })
-    return cfg, resolved_models
+        registry_entry = MODEL_REGISTRY[m.name.lower()]
+        registry_entry["model_config"].model_validate(load_yaml(m.model_cfg_path))
+        if m.name == "protogain":
+            GainTrainingConfig.model_validate(load_yaml(m.training_cfg_path))
+        if m.name == "autoencoder":
+            AutoEncoderTrainingConfig.model_validate(load_yaml(m.training_cfg_path))
+    return cfg
 
 def make_run_dir(
     parent: Path, 

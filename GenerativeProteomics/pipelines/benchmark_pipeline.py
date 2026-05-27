@@ -2,29 +2,29 @@ import logging
 from pathlib import Path
 from datetime import datetime
 
-from utils.configs.dataset_config import DatasetConfig
-from utils.configs.dataset_config import DatasetConfig
-from utils.configs.benchmark_config import BenchmarkConfig
-from utils.configs.model_config import GainConfig, MissForestConfig, AutoEncoderConfig
-
 from imputation_manager import ImputationManager
-
-from utils.paths import get_project_root
-from utils.helper import load_benchmark, load_yaml, make_run_dir
-
-from utils.data.dataset_builder import DatasetBuilder
-
 from evaluation.evaluator import Evaluator
 
+from utils.paths import get_project_root
+from utils.data.dataset_builder import DatasetBuilder
+from utils.configs.dataset_config import DatasetConfig
+from utils.configs.benchmark_config import BenchmarkConfig
+from utils.configs.model_config import (
+    GainConfig, 
+    MissForestConfig, 
+    AutoEncoderConfig, 
+    GlobalMeanConfig
+)
 from utils.writers.dataset_writer import DatasetWriter
 from utils.writers.experiment_writer import ExperimentWriter
+from utils.helper import load_benchmark, load_yaml, make_run_dir
 
 logger = logging.getLogger(__name__)
 
 def execute_run(
     seed: int,
     run_dir: Path,
-    model_cfg: GainConfig | MissForestConfig | AutoEncoderConfig,
+    model_cfg: GainConfig | MissForestConfig | AutoEncoderConfig | GlobalMeanConfig,
     dataset_cfg: DatasetConfig,
     miss_rate: float,
     evaluator_kwargs: dict,
@@ -53,16 +53,16 @@ def execute_run(
 
 def run_holdout(
     benchmark_cfg: BenchmarkConfig,
-    model_cfg: GainConfig | MissForestConfig | AutoEncoderConfig,
+    model_cfg: GainConfig | MissForestConfig | AutoEncoderConfig | GlobalMeanConfig,
     dataset_cfg: DatasetConfig,
     benchmark_dir: Path,
 ) -> None:
     strategy_cfg = benchmark_cfg.validation
-    logger.debug(f"\n Model name: {model_cfg.name}")
+    logger.debug(f"\n Model name: {model_cfg.name.lower()}")
 
     for miss_level in strategy_cfg.missing_levels:
         logger.info(f"\n Missingness: {miss_level}")
-        experiment_dir = benchmark_dir / model_cfg.name / f"miss_{int(miss_level * 100)}"
+        experiment_dir = benchmark_dir / model_cfg.name.lower() / f"miss_{int(miss_level * 100)}"
         experiment_dir.mkdir(parents=True, exist_ok=True)
 
         for run in range(1, benchmark_cfg.n_runs + 1):
@@ -82,7 +82,7 @@ def run_holdout(
 
 def run_groupkfold(
     benchmark_cfg: BenchmarkConfig,
-    model_cfg: GainConfig | MissForestConfig | AutoEncoderConfig,
+    model_cfg: GainConfig | MissForestConfig | AutoEncoderConfig | GlobalMeanConfig,
     dataset_cfg: DatasetConfig,
     benchmark_dir: Path,
 ) -> None:
@@ -93,7 +93,7 @@ def run_groupkfold(
         for fold_id in range(1, strategy_cfg.num_folds + 1):
             logger.info(f"\n ============  Run {run}/{benchmark_cfg.n_runs} ============")
 
-            experiment_dir = benchmark_dir / model_cfg.name / f"fold_{fold_id}"
+            experiment_dir = benchmark_dir / model_cfg.name.lower() / f"fold_{fold_id}"
             experiment_dir.mkdir(parents=True, exist_ok=True)
         
             execute_run(
@@ -118,10 +118,10 @@ def run_benchmark(
     benchmark_cfg_path: Path, 
     dataset_cfg_path: Path
 ) -> None:
-    benchmark_cfg, _ = load_benchmark(benchmark_cfg_path)
+    benchmark_cfg = load_benchmark(benchmark_cfg_path)
     dataset_cfg = DatasetConfig.model_validate(load_yaml(dataset_cfg_path))
 
-    validation_strategy = benchmark_cfg.validation.name
+    validation_strategy = benchmark_cfg.validation.name.lower()
     strategy_runner = STRATEGY_RUNNERS.get(validation_strategy)
     if strategy_runner is None:
         raise ValueError(
@@ -137,7 +137,7 @@ def run_benchmark(
     benchmark_dir.mkdir(parents=True, exist_ok=True)
 
     for model_cfg in benchmark_cfg.models:
-        logger.info(f"\n{'='*50}\nModel: {model_cfg.name}\n{'='*50}")
+        logger.info(f"\n{'='*50}\nModel: {model_cfg.name.lower()}\n{'='*50}")
 
         strategy_runner(
             benchmark_cfg=benchmark_cfg,

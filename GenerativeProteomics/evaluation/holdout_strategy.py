@@ -2,8 +2,10 @@ import torch
 import logging
 import numpy as np
 from datetime import datetime
+from sklearn.model_selection import train_test_split
 
 from utils.data.dataset import Data
+from utils.metrics.metrics import rmse
 from wrappers.gain import GainImputer
 from utils.writers.experiment_writer import ExperimentWriter
 from evaluation.evaluation_strategy import EvaluationStrategy
@@ -16,6 +18,8 @@ class HoldoutStrategy(EvaluationStrategy):
         imputer_factory,
         data: Data,
         experiment_writer: ExperimentWriter,
+        val_size: float=0.2,
+        seed: int=42,
         positive_label: int=1,
     ) -> None:
         evaluation_holdout_dir = experiment_writer.evaluation_dir / "holdout"
@@ -27,32 +31,52 @@ class HoldoutStrategy(EvaluationStrategy):
         observed_mask = data.observed_mask.detach().cpu().numpy()
         artificial_mask = data.artificial_missing_mask.detach().cpu().numpy()
         mask_observed_tensor = torch.tensor(observed_mask, device=data.device)
-        
+
+        # mask_train: observed positions excluding artificially hidden entries
+        # Shape: (n_samples, n_features), dtype: bool
+        # - (a) observed_mask == True: positions with real observed values (not originally NaN)
+        # - (b) artificial_mask != True: exclude positions the benchmark intentionally hid for evaluation
+        # Result: only positions that are (a) real data and (b) not held out
         mask_train = (observed_mask == True) & (artificial_mask != True)
         mask_train_tensor = torch.tensor(mask_train, device=data.device)
+
+        # mask_eval: artificially hidden positions used to assess imputation quality
+        # Shape: (n_samples, n_features), dtype: bool
+        # These entries had known ground-truth values (from observed_mask) that the benchmark
+        # deliberately removed to simulate missingness.
+        # RMSE is computed here only
         mask_eval = (artificial_mask == True)
         mask_eval_tensor = torch.tensor(mask_eval, device=data.device)
         
-        x_true = data.reference.detach().cpu().numpy()
-        x_true = np.nan_to_num(x_true, nan=0)
+        x_true = np.nan_to_num(data.reference.detach().cpu().numpy(), nan=0)
         x_true_tensor = torch.tensor(x_true, device=data.device, dtype=torch.float32)
         x_missing = data.missing.detach()
+
+        train_idx, val_idx = train_test_split(
+            np.arange(x_missing.shape[0]),
+            test_size=val_size,
+            random_state=seed,
+        )
         
         imputer = imputer_factory()
         experiment_writer.metadata_writer.set_start_time(datetime.now())
 
         imputer.train(
-            x_train=x_missing,
-            x_true=x_true_tensor,
-            mask_train=mask_train_tensor,
+            x_train=x_missing[train_idx],
+            x_true=x_true_tensor[train_idx],
+            mask_train=mask_train_tensor[train_idx],
+            x_val=x_missing[val_idx],
+            x_true_val=x_true_tensor[val_idx],
+            mask_val=mask_train_tensor[val_idx],
             experiment_writer=experiment_writer,
         )
         mask_impute = (mask_eval == True) | (observed_mask == False) # impute artificial hidden entries and original missing entries
         mask_impute_tensor = torch.tensor(mask_impute, device=data.device)
-        x_pred = imputer.impute(
+        x_pred = imputer.predict(
             x_missing=x_missing,
             mask=mask_impute_tensor,
         )
+        x_pred = x_pred.numpy()
         experiment_writer.metadata_writer.set_end_time(datetime.now())
 
         if isinstance(imputer, GainImputer):
@@ -66,11 +90,15 @@ class HoldoutStrategy(EvaluationStrategy):
                 precision_recall=discriminator_precision_recall,
             )
 
-        rmse = self._compute_rmse(x_true, x_pred, mask_eval)
-        logging.info(f"RMSE: {rmse}")
+        test_rmse = rmse(x_true, x_pred, mask_eval)
+        logging.info(f"RMSE: {test_rmse}")
         # Sanity check on training data
-        train_rmse = self._compute_rmse(x_true, x_pred, mask_train)
-        logger.debug(f"RMSE on training data: {train_rmse}")
+        logger.debug(
+            f"\n RMSE on training data: {rmse(x_true, x_pred, mask_train)}"
+            f"\n X: {x_true}"
+            f"\n X hat: {x_pred}"
+            f"\n Mask: {mask_train}"
+        )
 
         x_pred_denorm = data.denormalize(x_pred)
         x_true_denorm = data.denormalize(x_true)
@@ -96,8 +124,6 @@ class HoldoutStrategy(EvaluationStrategy):
             transpose=data.transpose,
         )
         
-        experiment_writer.result_writer.save_test_rmse(
-            rmse=rmse,
-        )
+        experiment_writer.result_writer.save_test_rmse(rmse=test_rmse)
         
         experiment_writer.metadata_writer.save_metadata()

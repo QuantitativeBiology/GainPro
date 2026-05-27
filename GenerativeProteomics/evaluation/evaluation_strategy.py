@@ -14,13 +14,3 @@ class EvaluationStrategy(ABC):
         **kwargs
     ) -> None:
         pass
-    
-    def _compute_rmse(
-        self,
-        x_true: np.ndarray,
-        x_pred: np.ndarray,
-        mask: np.ndarray,
-    ) -> float:
-        """Compute RMSE between true and predicted values on masked positions."""
-        mse = np.sum((x_true * mask - x_pred * mask) ** 2) / np.sum(mask)
-        return np.sqrt(mse)

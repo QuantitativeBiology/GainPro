@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 
 class GainConfig(BaseModel):
     name: str
@@ -13,3 +13,6 @@ class MissForestConfig(BaseModel):
 class AutoEncoderConfig(BaseModel):
     hidden_dims: list[int]
     latent_dim: int = Field(default=256)
+
+class GlobalMeanConfig(BaseModel):
+    pass
