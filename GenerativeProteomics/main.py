@@ -15,7 +15,6 @@ def main() -> None:
         format="%(asctime)s [%(name)s] %(levelname)s: %(message)s",
         force=True,
     )
-    logger = logging.getLogger()
 
     args.func(args)
 
