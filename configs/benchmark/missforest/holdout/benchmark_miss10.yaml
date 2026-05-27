@@ -1,10 +1,10 @@
 n_runs: 1 # number of runs
 initial_seed: 42
 
-validation_strategy: 
-  - name: "holdout"
-    missingness_levels: [0.10]
+validation: 
+  name: "holdout"
+  missing_levels: [0.10]
 
 models:
   - name: missForest
-    model_config: "../configs/model/missforest.yaml"
+    model_cfg_path: "../configs/model/missforest.yaml"
