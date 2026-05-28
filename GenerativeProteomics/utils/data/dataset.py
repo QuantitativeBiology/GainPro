@@ -45,16 +45,30 @@ class Data:
         self.normalizer = normalizer
         self.log_transform = log_transform
 
-    def denormalize(
+    def inverse_transform(
+        self, 
+        values: np.ndarray
+    ) -> np.ndarray:
+        """Reverse all transformations applied during preprocessing."""
+        values = self._denormalize(values)
+        values = self._inverse_log2p1(values)
+        return values
+
+    def _denormalize(
         self,
         values: np.ndarray,
     ) -> np.ndarray:
-        return self.normalizer.inverse_transform(values)
+        if self.normalizer is None:
+            return values
+        else:
+            return self.normalizer.inverse_transform(values)
     
-    def inverse_log2p1(
+    def _inverse_log2p1(
         self,
         x: np.ndarray,
     ) -> np.ndarray:
         """Reverse log2(x + 1) transformation."""
-        x_log = np.power(2, x) - 1
-        return x_log
+        if not self.log_transform:
+            return x
+        else:
+            return np.power(2, x) - 1

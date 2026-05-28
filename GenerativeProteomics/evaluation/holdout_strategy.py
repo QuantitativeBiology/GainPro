@@ -76,8 +76,8 @@ class HoldoutStrategy(EvaluationStrategy):
             x_missing=x_missing,
             mask=mask_impute_tensor,
         )
-        x_pred = x_pred.numpy()
         experiment_writer.metadata_writer.set_end_time(datetime.now())
+        x_pred = x_pred.numpy()
 
         if isinstance(imputer, GainImputer):
             discriminator_precision_recall = imputer.evaluate_discriminator(
@@ -100,17 +100,9 @@ class HoldoutStrategy(EvaluationStrategy):
             f"\n Mask: {mask_train}"
         )
 
-        x_pred_denorm = data.denormalize(x_pred)
-        x_true_denorm = data.denormalize(x_true)
-
-        if data.log_transform:
-            x_true_out = data.inverse_log2p1(x_true_denorm)
-            x_pred_out = data.inverse_log2p1(x_pred_denorm)
-        else:
-            x_true_out = x_true_denorm
-            x_pred_out = x_pred_denorm
-
-        x_true_out = np.where(observed_mask == 0, np.nan, x_true_out,)
+        x_pred_out = data.inverse_transform(x_pred)
+        x_true_out = data.inverse_transform(x_true)
+        x_true_out = np.where(observed_mask == 0, np.nan, x_true_out)
         
         experiment_writer.result_writer.save_predictions(
             sample_ids=data.sample_names,
@@ -123,7 +115,5 @@ class HoldoutStrategy(EvaluationStrategy):
             group_mapping=data.tissue_mapping,
             transpose=data.transpose,
         )
-        
         experiment_writer.result_writer.save_test_rmse(rmse=test_rmse)
-        
         experiment_writer.metadata_writer.save_metadata()

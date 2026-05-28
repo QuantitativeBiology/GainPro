@@ -41,9 +41,9 @@ class DatasetBuilder:
         self.extract_tissue_labels()
 
         self.log_transform = cfg.log_transform
-        if self.log_transform:
-            self.log2p1_transform()
-        self.normalizer = build_normalizer(cfg.normalizer)
+        self.normalize = False if cfg.normalizer == "none" else True
+        if self.normalize:
+            self.normalizer = build_normalizer(cfg.normalizer)
 
         self.reference = None
         self.missing = None
@@ -88,14 +88,21 @@ class DatasetBuilder:
         self.tissue_mapping = dict(enumerate(cat.cat.categories))
         self.df = self.df.drop(index=["tissue"])
 
-    def log2p1_transform(self) -> None:
-        values = self.df.values.astype(float)
-        values_transformed = np.log2(values + 1)
-        self.df = pd.DataFrame(
-            data=values_transformed,
-            index=self.df.index,
-            columns=self.df.columns
-        )
+    def _apply_transformations(
+        self,
+        df: pd.DataFrame,
+        observed_mask: pd.DataFrame,
+    ) -> pd.DataFrame:
+        if self.log_transform:
+            values = self.df.values.astype(float)
+            df = pd.DataFrame(
+                data=np.log2(values + 1),
+                index=df.index,
+                columns=df.columns,
+            )
+        if self.normalize:
+            values = self.normalizer.fit(df, observed_mask).transform(df)
+        return df
 
     def build(
         self, 
@@ -104,10 +111,7 @@ class DatasetBuilder:
     ) -> Data:
         self.observed_mask = compute_observed_mask(self.df)
 
-        self.normalizer.fit(self.df, self.observed_mask)
-        X_norm = self.normalizer.transform(self.df)
-
-        self.reference = X_norm
+        self.reference = self._apply_transformations(self.df, self.observed_mask)
         self.missing = induce_missing(df=self.reference, seed=seed, miss_rate=self.miss_rate, restrict_to_observed=False)
 
         self.original_missingness = compute_missing_rate(self.df)
@@ -117,6 +121,7 @@ class DatasetBuilder:
             f"\n Dataset shape: {self.reference.shape}"
             f"\n Original missing rate: {self.original_missingness:.2%}"
             f"\n Current missing rate: {self.current_missingness:.2%}"
+            f"\n Zero-fill: {'enabled' if fill_zeros else 'disabled'}"
         )
 
         self.artificial_missing_mask = compute_evaluation_mask(
@@ -136,7 +141,7 @@ class DatasetBuilder:
             tissue=self.tissue,
             tissue_mapping=self.tissue_mapping,
             transpose=self.transposed,
-            normalizer=self.normalizer,
+            normalizer=self.normalizer if self.normalize else None,
             log_transform=self.log_transform,
         )
         return data
