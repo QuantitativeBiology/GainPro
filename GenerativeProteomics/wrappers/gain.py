@@ -20,7 +20,7 @@ class GainImputer(Imputer):
         input_dim: int,
         gain_hypers: GainConfig,
         generator_output_activation: nn.Module,
-        training_hypers: GainTrainingConfig,
+        training_cfg: GainTrainingConfig,
     ) -> "GainImputer":
         self.gain = Gain(
             input_dim=input_dim,
@@ -31,7 +31,7 @@ class GainImputer(Imputer):
         )
         self.trainer = Trainer(
             model=self.gain,
-            training_hypers=training_hypers
+            training_hypers=training_cfg
         )
     
     @classmethod
@@ -49,9 +49,9 @@ class GainImputer(Imputer):
 
     def train(
         self,
-        x_train: torch.tensor,
-        x_true: torch.tensor,
-        mask_train: torch.tensor,
+        x_train: torch.Tensor,
+        x_true: torch.Tensor,
+        mask_train: torch.Tensor,
         experiment_writer: ExperimentWriter,
     ) -> None:
         self.trainer.train(
@@ -61,10 +61,10 @@ class GainImputer(Imputer):
             experiment_writer=experiment_writer,
         )
 
-    def impute(
+    def predict(
         self,
-        x_missing: torch.tensor,
-        mask: torch.tensor,
+        x_missing: torch.Tensor,
+        mask: torch.Tensor,
     ) -> np.ndarray:
         x_hat = self.trainer.impute(
             x_missing=x_missing,
@@ -74,9 +74,9 @@ class GainImputer(Imputer):
     
     def evaluate_discriminator(
         self,
-        x_missing: torch.tensor,
-        mask_eval: torch.tensor,
-        mask_observed: torch.tensor,
+        x_missing: torch.Tensor,
+        mask_eval: torch.Tensor,
+        mask_observed: torch.Tensor,
         positive_label: int, 
     ) -> dict[str, float]:
         results = self.trainer.compute_precision_recall_discriminator(
