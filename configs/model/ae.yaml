@@ -1,2 +1,2 @@
-hidden_dims: [512, 256, 128]
+hidden_dims: [128, 64]
 latent_dim: 64

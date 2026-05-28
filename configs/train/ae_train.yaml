@@ -1,4 +1,4 @@
-num_epochs: 10
+num_epochs: 100
 batch_size: 128
 lr: 1e-3
 scheduler:

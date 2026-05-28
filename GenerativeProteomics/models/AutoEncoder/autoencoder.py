@@ -43,11 +43,11 @@ class AutoEncoder(pl.LightningModule):
     
     def compute_loss(
         self,
-        batch,
+        x,
         x_hat,
         mask,
     ) -> torch.Tensor:
-        rmse = reconstruction_loss(x=batch, x_hat=x_hat, mask=mask)
+        rmse = reconstruction_loss(x=x, x_hat=x_hat, mask=mask)
         return rmse
 
     def training_step(
@@ -61,8 +61,18 @@ class AutoEncoder(pl.LightningModule):
             f"\n X true: {x_true}"
             f"\n Out: {out}"
         )
-        loss = self.compute_loss(batch=x_true, x_hat=out, mask=mask)
+        loss = self.compute_loss(x=x_true, x_hat=out, mask=mask)
+        self.log("train/loss", loss, prog_bar=True, on_step=True, on_epoch=True)
         return loss
+    
+    def validation_step(self, batch: dict, batch_idx: int):
+        x_true, x, mask = batch
+        out = self.forward(x)
+        loss = self.compute_loss(x=x_true, x_hat=out, mask=mask)
+        logger.debug(
+            f"\n Validation loss: {loss}"
+        )
+        self.log("val/loss", loss, prog_bar=True, sync_dist=True, on_step=True, on_epoch=True)
     
     def configure_optimizers(self):
         """Set up Adam optimizers and StepLR schedulers."""
@@ -85,22 +95,57 @@ class AutoEncoder(pl.LightningModule):
         val_loader: DataLoader | None = None,
     ) -> None:
         logger.info("Started training...")
-        trainer = pl.Trainer(max_epochs=self.training_cfg.num_epochs)
-        trainer.fit(self, train_dataloaders=train_loader)
+        trainer = pl.Trainer(max_epochs=self.training_cfg.num_epochs, accumulate_grad_batches=1)
+        trainer.fit(self, train_dataloaders=train_loader, val_dataloaders=val_loader)
     
     @torch.no_grad()
     def predict(
         self,
         loader: DataLoader,
     ) -> torch.Tensor:
+        """
+        Predict all entries.
+
+        Args:
+        - loader (DataLoader): PyTorch DataLoader yielding:
+            - batch (torch.Tensor): Input tensor containing observed data (and possibly masked values).
+
+        Returns:
+        - (torch.Tensor): Predicted values (model predictions).
+        """
         self.eval()
 
-        all_x_out: list[torch.Tensor] = []
+        all_x_pred: list[torch.Tensor] = []
+        
+        for batch in loader:
+            x_pred = self.forward(batch)
+            all_x_pred.append(x_pred.cpu())
+
+        return torch.cat(all_x_pred)
+    
+    @torch.no_grad()
+    def impute(
+        self,
+        loader: DataLoader,
+    ) -> torch.Tensor:
+        """
+        Perform missing-value imputation.
+
+        Args:
+        - loader (DataLoader): PyTorch DataLoader yielding:
+            - batch (torch.Tensor): Input tensor containing observed data (and possibly masked values).
+
+        Returns:
+        - (torch.Tensor): Imputed values (model predictions).
+        """
+        self.eval()
+
+        all_x_hat: list[torch.Tensor] = []
         
         for batch, mask in loader:
             mask = mask.float()
             x_hat = self.forward(batch)
-            x_out = (1 - mask) * batch + mask * x_hat
-            all_x_out.append(x_out.cpu())
+            x_hat = (1 - mask) * batch + mask * x_hat
+            all_x_hat.append(x_hat.cpu())
 
-        return torch.cat(all_x_out).numpy()
+        return torch.cat(all_x_hat)
