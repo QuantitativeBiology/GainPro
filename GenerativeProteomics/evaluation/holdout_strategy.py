@@ -71,10 +71,9 @@ class HoldoutStrategy(EvaluationStrategy):
             experiment_writer=experiment_writer,
         )
         mask_impute = (mask_eval == True) | (observed_mask == False) # impute artificial hidden entries and original missing entries
-        mask_impute_tensor = torch.tensor(mask_impute, device=data.device)
         x_pred = imputer.predict(
             x_missing=x_missing,
-            mask=mask_impute_tensor,
+            mask=torch.tensor(mask_impute, device=data.device),
         )
         experiment_writer.metadata_writer.set_end_time(datetime.now())
         x_pred = x_pred.numpy()
