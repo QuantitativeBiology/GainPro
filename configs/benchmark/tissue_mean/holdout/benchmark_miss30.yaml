@@ -1,9 +1,10 @@
 n_runs: 1 # number of runs
 initial_seed: 42
 
-validation_strategy: 
+validation: 
   - name: "holdout"
-    missingness_levels: [0.30]
+    missing_levels: [0.30]
 
 models:
   - name: tissue_mean
+    model_cfg_path: "../configs/model/tissue_mean.yaml"

@@ -7,5 +7,5 @@ validation:
 
 models:
   - name: protogain
-    model_config_path: "../configs/model/protogain.yaml"
-    training_config_path: "../configs/train/gain_train.yaml"
+    model_cfg_path: "../configs/model/protogain.yaml"
+    training_cfg_path: "../configs/train/gain_train.yaml"

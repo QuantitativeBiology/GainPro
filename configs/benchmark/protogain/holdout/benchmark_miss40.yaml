@@ -1,11 +1,11 @@
 n_runs: 1
 initial_seed: 42
 
-validation_strategy:
-  - name: "holdout"
-    missingness_levels: [0.40]
+validation:
+  name: "holdout"
+  missing_levels: [0.40]
 
 models:
   - name: protogain
-    model_config: "../configs/model/protogain.yaml"
-    train_config: "../configs/train/train.yaml"
+    model_cfg_path: "../configs/model/protogain.yaml"
+    training_cfg_path: "../configs/train/gain_train.yaml"
