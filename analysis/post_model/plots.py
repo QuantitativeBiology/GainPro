@@ -10,6 +10,36 @@ from filters import filter_artificial_missing_entries, filter_tissue_entries
 from config import PlotConfig
 
 FIGSIZE = (6,4)
+TRAIN_COLOR = "#fc8b64"
+VAL_COLOR = "#909cc5"
+
+# =================================================
+# =                 1. Loss                       =
+# =================================================
+
+def plot_loss(
+    name_loss: str,
+    train_loss: list,
+    val_loss: list=None,
+) -> None:
+    epochs = np.arange(1, len(train_loss) + 1)
+
+    plt.figure(figsize=FIGSIZE)
+    plt.xlabel('Epoch')
+    plt.ylabel(name_loss)
+    plt.plot(epochs, train_loss, label="Train", color=TRAIN_COLOR)
+    if val_loss is not None:
+        plt.plot(epochs, val_loss, label="Validation", color=VAL_COLOR)
+    plt.legend()
+    plt.tick_params(axis='both', which='both', direction='out')
+    ax = plt.gca()
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+    ax.set_axisbelow(True)
+
+# =================================================
+# =              2. Holdout                       =
+# ================================================= 
 
 def darken_color(color, factor=0.7) -> tuple[float, float, float]:
     r, g, b = mcolors.to_rgb(color)
@@ -137,7 +167,7 @@ def plot_metric(
     print(f"Saved: {path}")
 
 # =================================================
-# =                  Tissue                       =
+# =              2.1 Tissue                       =
 # =================================================
 
 def _add_best_model_markers(
