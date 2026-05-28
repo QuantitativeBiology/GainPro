@@ -9,7 +9,6 @@ import matplotlib.colors as mcolors
 from filters import filter_artificial_missing_entries, filter_tissue_entries
 from config import PlotConfig
 
-FIGSIZE = (6,4)
 TRAIN_COLOR = "#fc8b64"
 VAL_COLOR = "#909cc5"
 
@@ -21,10 +20,11 @@ def plot_loss(
     name_loss: str,
     train_loss: list,
     val_loss: list=None,
+    figsize: tuple=(6,4),
 ) -> None:
     epochs = np.arange(1, len(train_loss) + 1)
 
-    plt.figure(figsize=FIGSIZE)
+    plt.figure(figsize=figsize)
     plt.xlabel('Epoch')
     plt.ylabel(name_loss)
     plt.plot(epochs, train_loss, label="Train", color=TRAIN_COLOR)
@@ -70,8 +70,9 @@ def build_longform_plot_data(
 def plot_scatter(
     df: pd.DataFrame,
     out_dir: Path,
+    figsize: tuple=(6,4),
 ) -> None:
-    plt.figure(figsize=FIGSIZE)
+    plt.figure(figsize=figsize)
     ax = sns.scatterplot(
         data=df,
         x="true_value", 
@@ -98,64 +99,47 @@ def plot_metric(
     metric: str, 
     miss_level: int, 
     plot_dir: Path,
-    yticks: list=None
+    figsize: tuple=(4,4),
 ) -> None:
     """
     Bar chart of `metric` ("Pearson r" or "RMSE") for a given missing level.
-    Aggregates across all tissues (no tissue grouping).
-    The best model is annotated with its marker symbol.
 
     Args:
         - df (DataFrame): full performance table (may span multiple miss levels)
         - metric (str): column to plot
         - miss_level (int): which miss level to filter / label in the filename
-        - plot_dir (Path):
-        - yticks (list|None): custom y-tick positions
+        - plot_dir (Path)
     """
-    # Filter to the requested missing level if the column exists
-    if "Missing level" in df.columns:
-        df = df[df["Missing level"] == miss_level].copy()
-    else:
-        df = df.copy()
+    df = df[df["Missing level"] == miss_level].copy()
+    df = df.sort_values(metric, ascending=(metric == "Pearson r"))
 
-    # Aggregate across all tissues - compute mean metric per model
-    agg_df = df.groupby("Model")[metric].mean().reset_index()
-    agg_df = agg_df.sort_values(metric, ascending=(metric == "RMSE"))
-
-    plt.figure(figsize=(4, 4))
+    plt.figure(figsize=figsize)
     ax = plt.gca()
 
-    x = np.arange(len(agg_df)) * 0.2
-    y = agg_df[metric]
+    n = len(df)
+    x = df[metric]
+    y = np.arange(n)
 
-    bars = ax.bar(
-        x,
-        y,
-        width=0.1,
-        color=plt.cm.viridis(np.linspace(0, 1, len(x)))
-    )
+    colors = plt.cm.Paired(np.arange(len(y)))
 
-    ax.set_xticks(x)
-    ax.set_xticklabels(agg_df["Model"], ha="center", fontsize=9)
+    ax.barh(y, x, color=colors, height=0.5)
 
-    # Annotate values above bars
-    for p in ax.patches:
-        height = p.get_height()
-        ax.annotate(f"{height:.3f}",
-                    (p.get_x() + p.get_width() / 2, height),
-                    ha='center', va='bottom',
-                    fontsize=8,
-                    xytext=(0, 3),
-                    textcoords='offset points')
+    for _, (val, y_i) in enumerate(zip(x, y)):
+        ax.annotate(
+            f"{val:.3f}",
+            (val, y_i),
+            ha="left",
+            va="center",
+            fontsize=8,
+            xytext=(3, 0),
+            textcoords="offset points",
+        )
+    
+    ax.set_yticks(y)
+    ax.set_yticklabels(df["Model"], fontsize=9)
+    ax.set_ylabel("")
+    ax.set_xlabel("Pearson\u2019s r" if metric == "Pearson r" else metric)
 
-
-    plt.xticks(ha="center", fontsize=9)
-    if yticks:
-        plt.yticks(yticks)
-    plt.ylabel("Pearson\u2019s r" if metric == "Pearson r" else metric)
-    plt.xlabel("")
-
-    ax.set_axisbelow(True)
     ax.spines["top"].set_visible(False)
     ax.spines["right"].set_visible(False)
 
@@ -163,7 +147,6 @@ def plot_metric(
     metric_slug = metric.lower().replace(" ", "_").replace("\u2019", "")
     path = plot_dir / f"{metric_slug}_by_model_miss{miss_level}.png"
     plt.savefig(path)
-    plt.show()
     print(f"Saved: {path}")
 
 # =================================================
@@ -214,7 +197,8 @@ def plot_metric_by_tissue(
     miss_level: int,
     plot_dir: Path,
     # reference_model="Tissue Mean", 
-    yticks: list=None
+    yticks: list=None,
+    figsize: tuple=(9,5)
 ) -> None:
     """
     Bar chart of `metric` ("Pearson r" or "RMSE") per tissue for a given missing level.
@@ -247,7 +231,7 @@ def plot_metric_by_tissue(
         for t, n in zip(order_df["Tissue"], order_df["Number of samples"])
     ]
 
-    plt.figure(figsize=(9, 5))
+    plt.figure(figsize=figsize)
     ax = plt.gca()
 
     sns.barplot(data=df, x="Tissue", y=metric, hue="Model (Marker)",
