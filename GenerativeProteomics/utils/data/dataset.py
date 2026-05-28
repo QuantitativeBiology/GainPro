@@ -35,8 +35,8 @@ class Data:
         self.num_features = len(self.feature_names)
         self.input_dim = reference.shape[1]
 
-        self.missing = torch.from_numpy(missing.values).to(dtype=torch.float32, device=self.device)
-        self.reference = torch.from_numpy(reference.values).to(dtype=torch.float32, device=self.device)
+        self.reference = torch.from_numpy(reference.values.astype(np.float32)).to(device=self.device)
+        self.missing = torch.from_numpy(missing.values.astype(np.float32)).to(device=self.device)
         self.observed_mask = torch.from_numpy(observed_mask.values).to(device=self.device)
         self.artificial_missing_mask = torch.from_numpy(artificial_missing_mask.values).to(self.device)
         self.tissue = torch.from_numpy(tissue.values.copy()).to(self.device)

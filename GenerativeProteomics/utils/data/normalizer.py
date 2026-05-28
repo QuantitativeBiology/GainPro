@@ -94,9 +94,10 @@ class StandardNormalizer(Normalizer):
         self._check_fitted()
         scaled = (df.values.astype(float) - self.means) / self.stds
         logger.debug(
+            f"\n df: {df}"
             f"\n Z-Score normalization:"
-            f"\n Min: {df.values.min()}"
-            f"\n Max: {df.values.max()}"
+            f"\n Min: {df.values.min}"
+            f"\n Max: {df.values.max}"
         )
         return pd.DataFrame(scaled, index=df.index, columns=df.columns)
     

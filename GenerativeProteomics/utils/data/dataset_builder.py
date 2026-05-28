@@ -93,15 +93,20 @@ class DatasetBuilder:
         df: pd.DataFrame,
         observed_mask: pd.DataFrame,
     ) -> pd.DataFrame:
+        logger.info(
+            f"\n Preprocessing:"
+            f"\n Log-transform: {self.log_transform}"
+            f"\n Normalize: {self.normalize}"
+        )
         if self.log_transform:
-            values = self.df.values.astype(float)
+            values = df.values.astype(float)
             df = pd.DataFrame(
                 data=np.log2(values + 1),
                 index=df.index,
                 columns=df.columns,
             )
         if self.normalize:
-            values = self.normalizer.fit(df, observed_mask).transform(df)
+            df = self.normalizer.fit(df, observed_mask).transform(df)
         return df
 
     def build(
@@ -111,7 +116,7 @@ class DatasetBuilder:
     ) -> Data:
         self.observed_mask = compute_observed_mask(self.df)
 
-        self.reference = self._apply_transformations(self.df, self.observed_mask)
+        self.reference = self._apply_transformations(df=self.df, observed_mask=self.observed_mask)
         self.missing = induce_missing(df=self.reference, seed=seed, miss_rate=self.miss_rate, restrict_to_observed=False)
 
         self.original_missingness = compute_missing_rate(self.df)
