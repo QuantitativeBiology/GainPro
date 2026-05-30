@@ -7,12 +7,14 @@ class GainConfig(BaseModel):
     hidden_dim: int = Field(default=1024)
 
 class MissForestConfig(BaseModel):
+    name: str
     n_tree: int = Field(default=1)
     max_iter: int = Field(default=1)
 
 class AutoEncoderConfig(BaseModel):
+    name: str
     hidden_dims: list[int]
     latent_dim: int = Field(default=256)
 
 class GlobalMeanConfig(BaseModel):
-    pass
+    name: str

@@ -33,7 +33,7 @@ def execute_run(
 
     manager = ImputationManager(model_cfg=model_cfg)
 
-    builder = DatasetBuilder(cfg=dataset_cfg, miss_rate=miss_rate)
+    builder = DatasetBuilder(cfg=dataset_cfg, model_name=model_cfg.name, miss_rate=miss_rate)
     data = builder.build(fill_zeros=manager.require_zero_fill, seed=seed)
     manager.set_data(data)
 

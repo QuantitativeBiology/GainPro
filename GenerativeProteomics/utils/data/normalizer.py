@@ -61,13 +61,13 @@ class StandardNormalizer(Normalizer):
     Features with zero variance are left with std=1 to avoid division by zero.
     """
 
-    def __init__(self) -> "StandardNormalizer":
+    def __init__(self) -> None:
         self.means: np.ndarray | None = None
         self.stds: np.ndarray | None = None
 
     @property
     def name(self) -> str:
-        return "standard"
+        return "Standard Scaler"
 
     def fit(
         self, 
@@ -136,7 +136,7 @@ class MinMaxNormalizer(Normalizer):
 
     @property
     def name(self) -> str:
-        return "minmax"
+        return "Min-Max Scaler"
 
     def fit(
         self, 

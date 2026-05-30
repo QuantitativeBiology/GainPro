@@ -22,10 +22,18 @@ from utils.data.helper import (
 
 logger = logging.getLogger(__name__)
 
+MODEL_PREPROCESSING_DEFAULTS = {
+    "missforest": {"log_transform": False, "normalizer": "none"},
+    "global_mean": {"log_transform": False, "normalizer": "none"},
+    "protogain": {"log_transform": True, "normalizer": "minmax"},
+    "autoencoder": {"log_transform": True, "normalizer": "standard"},
+}
+
 class DatasetBuilder:
     def __init__(
         self,
         cfg: DatasetConfig,
+        model_name: str,
         miss_rate: float=0.0,
     ) -> "DatasetBuilder":
         if not cfg.dataset_path.exists():
@@ -40,10 +48,11 @@ class DatasetBuilder:
         self.transposed = "tissue" in self.df.index
         self.extract_tissue_labels()
 
-        self.log_transform = cfg.log_transform
-        self.normalize = False if cfg.normalizer == "none" else True
+        self.log_transform = self._resolve_log_transform(cfg.log_transform, model_name)
+        self.normalizer = self._resolve_normalizer(cfg.normalizer, model_name)
+        self.normalize = self.normalizer != "none"
         if self.normalize:
-            self.normalizer = build_normalizer(cfg.normalizer)
+            self.normalizer = build_normalizer(self.normalizer)
 
         self.reference = None
         self.missing = None
@@ -88,6 +97,24 @@ class DatasetBuilder:
         self.tissue_mapping = dict(enumerate(cat.cat.categories))
         self.df = self.df.drop(index=["tissue"])
 
+    def _resolve_log_transform(
+        self,
+        value: bool | str,
+        model_name: str,
+    ):
+        if value != "auto":
+            return value
+        return MODEL_PREPROCESSING_DEFAULTS.get(model_name.lower()).get("log_transform", False)
+
+    def _resolve_normalizer(
+        self,
+        value: bool | str,
+        model_name: str,
+    ):
+        if value != "auto":
+            return value
+        return MODEL_PREPROCESSING_DEFAULTS.get(model_name.lower()).get("normalizer", "none")
+
     def _apply_transformations(
         self,
         df: pd.DataFrame,
@@ -96,7 +123,7 @@ class DatasetBuilder:
         logger.info(
             f"\n Preprocessing:"
             f"\n Log-transform: {self.log_transform}"
-            f"\n Normalize: {self.normalize}"
+            f"\n Normalize: {self.normalize}, Normalizer: {self.normalizer.name if self.normalize else "None"}"
         )
         if self.log_transform:
             values = df.values.astype(float)
