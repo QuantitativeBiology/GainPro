@@ -6,19 +6,20 @@ def filter_artificial_missing_entries(
     predictions: pd.DataFrame,
 ) -> pd.DataFrame:
     """
-    Filter artificially hidden entries.
+    Filter artificially hidden entries from the full predictions DataFrame.
 
     Args:
-        - predictions (pd.DataFrame): DataFrame containing model predictions.
+        - predictions (pd.DataFrame): DataFrame containing model predictions
+            across all samples, features and tissues.
             Each row represents a single entry with the following fields:
             (sample_id, feature, true_value, predicted_value, observed_mask, artificial_missing_mask, group_id).
     
     Returns:
-        - (pd.DataFrame): Subset of `predictions` containing only the artificially hidden entries.
+        - (pd.DataFrame): Subset of `predictions` containing only the artificially hidden entries across
+            the entire DataFrame (i.e. where `artificial_missing_mask` == EntryState.ARTIFICIAL_MISSING)
     """
     return predictions[
-        (predictions["artificial_missing_mask"] == EntryState.ARTIFICIAL_MISSING) &
-        (predictions["observed_mask"] == EntryState.OBSERVED)
+        (predictions["artificial_missing_mask"] == EntryState.ARTIFICIAL_MISSING)
     ]
 
 def filter_tissue_entries(

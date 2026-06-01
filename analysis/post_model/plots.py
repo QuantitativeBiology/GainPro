@@ -11,6 +11,7 @@ from config import PlotConfig
 
 TRAIN_COLOR = "#fc8b64"
 VAL_COLOR = "#909cc5"
+config = PlotConfig()
 
 # =================================================
 # =                 1. Loss                       =
@@ -48,20 +49,20 @@ def darken_color(color, factor=0.7) -> tuple[float, float, float]:
 def build_longform_plot_data(
     df: pd.DataFrame
 ) -> pd.DataFrame:
-    # Expand "True values" and "Predicted values" list into long format
+    # Expand "true_value" and "predicted_value" list into long format
     rows = []
     for _, row in df.iterrows():
 
-        true_vals = row["True values"]
-        pred_vals = row["Predicted values"]
+        true_vals = row["true_value"]
+        pred_vals = row["predicted_value"]
 
         for t, p in zip(true_vals, pred_vals):
             rows.append({
-                "True values": t,
-                "Predicted values": p,
-                "Tissue": row["Tissue"],
-                "Model": row["Model"],
-                "Number of samples": row["Number of samples"],
+                "true_value": t,
+                "predicted_value": p,
+                "tissue": row["tissue"],
+                "model": row["model"],
+                "n_samples": row["n_samples"],
             })
 
     plot_df = pd.DataFrame(rows)
@@ -69,30 +70,81 @@ def build_longform_plot_data(
 
 def plot_scatter(
     df: pd.DataFrame,
-    out_dir: Path,
+    plot_dir: Path,
     figsize: tuple=(6,4),
+    metrics: dict=None,
 ) -> None:
-    plt.figure(figsize=figsize)
-    ax = sns.scatterplot(
-        data=df,
-        x="true_value", 
-        y="predicted_value",
+    model_name = df["model"].unique()[0]
+    fig, ax = plt.subplots(figsize=figsize)
+
+    x = df["true_value"].to_numpy(dtype=float)
+    y = df["predicted_value"].to_numpy(dtype=float)
+    pad = 0.15 # to prevent circles from getting cut
+    lo = min(x.min(), y.min()) - pad
+    hi = max(x.max(), y.max()) + pad
+
+    ax.plot(
+        [lo, hi], [lo, hi],
+        color="red",
+        linestyle="--",
+        linewidth=0.5,
+        alpha=0.85,
+    )
+    ax.scatter(
+        x=x,
+        y=y,
         alpha=0.5, 
-        s=25, 
+        s=18,
+        color=config.model_color[model_name],
         edgecolor="none", 
     )
-    lims = [
-        np.min([ax.get_xlim(), ax.get_ylim()]),
-        np.max([ax.get_xlim(), ax.get_ylim()]),
-    ]
-    ax.plot(lims, lims, color="red", linestyle="--", linewidth=1)
+    sns.kdeplot(
+        x=x,
+        y=y,
+        ax=ax,
+        levels=5,
+        color=darken_color(config.model_color[model_name]),
+        linewidths=0.8,
+        alpha=0.6,
+        zorder=2,
+    )
+    ax.set_xlim(lo, hi)
+    ax.set_ylim(lo, hi)
+
     ax.set_xlabel("Observed")
     ax.set_ylabel("Predicted")
     ax.spines["top"].set_visible(False)
     ax.spines["right"].set_visible(False)
-    ax.grid(True, linestyle="--", alpha=0.3)
+    ax.grid(True, linestyle=":", alpha=0.3)
     ax.set_aspect("equal", adjustable="box")
-    plt.savefig(f"{out_dir}/observed_vs_predicted.png")
+    ax.set_title(model_name)
+
+    if metrics is not None:
+        lines = [f"{k}: {v:.3f}" for k, v in metrics.items()]
+        annotation = "\n".join(lines)
+        ax.text(
+            0.04,
+            0.97,
+            annotation,
+            transform=ax.transAxes,
+            va="top",
+            ha="left",
+            fontsize=8,
+            bbox=dict(
+                boxstyle="round,pad=0.4",
+                facecolor="white",
+                edgecolor="#cccccc",
+                linewidth=0.8,
+                alpha=0.92,
+            ),
+        )
+    
+    dir = Path(f"{plot_dir}/{model_name.lower()}")
+    dir.mkdir(parents=True, exist_ok=True)
+    out_path = f"{dir}/observed_vs_predicted.png"
+    fig.tight_layout()
+    plt.savefig(out_path, dpi=150, bbox_inches="tight")
+    print(f"Saved: {out_path}")
 
 def plot_metric(
     df: pd.DataFrame, 
@@ -102,7 +154,7 @@ def plot_metric(
     figsize: tuple=(4,4),
 ) -> None:
     """
-    Bar chart of `metric` ("Pearson r" or "RMSE") for a given missing level.
+    Bar chart of `metric` ("pearson_r" or "rmse") for a given missing level.
 
     Args:
         - df (DataFrame): full performance table (may span multiple miss levels)
@@ -110,17 +162,16 @@ def plot_metric(
         - miss_level (int): which miss level to filter / label in the filename
         - plot_dir (Path)
     """
-    df = df[df["Missing level"] == miss_level].copy()
-    df = df.sort_values(metric, ascending=(metric == "Pearson r"))
+    df = df[df["missing_level"] == miss_level].copy()
+    df = df.sort_values(metric, ascending=(metric == "pearson_r"))
 
     plt.figure(figsize=figsize)
     ax = plt.gca()
 
-    n = len(df)
     x = df[metric]
-    y = np.arange(n)
+    y = np.arange(len(df))
 
-    colors = plt.cm.Paired(np.arange(len(y)))
+    colors = [config.model_color[model] for model in df["model"]]
 
     ax.barh(y, x, color=colors, height=0.5)
 
@@ -136,9 +187,13 @@ def plot_metric(
         )
     
     ax.set_yticks(y)
-    ax.set_yticklabels(df["Model"], fontsize=9)
+    ax.set_yticklabels(df["model"], fontsize=9)
     ax.set_ylabel("")
-    ax.set_xlabel("Pearson\u2019s r" if metric == "Pearson r" else metric)
+    ax.set_xlabel(
+        "Pearson’s r" if metric == "pearson_r"
+        else "RMSE" if metric == "rmse"
+        else metric.upper()
+    )
 
     ax.spines["top"].set_visible(False)
     ax.spines["right"].set_visible(False)
@@ -150,7 +205,7 @@ def plot_metric(
     print(f"Saved: {path}")
 
 # =================================================
-# =              2.1 Tissue                       =
+# =              2.1 tissue                       =
 # =================================================
 
 def _add_best_model_markers(
@@ -169,16 +224,16 @@ def _add_best_model_markers(
 
     Args:
         - ax: Matplotlib Axes object containing the plotted bar containers.
-        - tissue_performance (pd.DataFrame): DataFrame with columns ["Tissue", "Model", metric].
+        - tissue_performance (pd.DataFrame): DataFrame with columns ["tissue", "model", metric].
         - tissue_order: Ordered sequence of tissue labels matching the bar order in the plot.
         - metric (str): Metric column used to determine the best model per tissue.
         - best_fn: Function applied to the pivoted metric DataFrame that returns the best
             model for each tissue. Uses .idxmax() for metrics where higher
             is better and .idxmin() for metrics where lower is better.
     """
-    pivot_df = tissue_performance.pivot(index="Tissue", columns="Model", values=metric)
+    pivot_df = tissue_performance.pivot(index="tissue", columns="model", values=metric)
     best_model_per_tissue = best_fn(pivot_df).to_dict()
-    for container, model_name in zip(ax.containers, tissue_performance["Model"].unique()):
+    for container, model_name in zip(ax.containers, tissue_performance["model"].unique()):
         for bar, tissue in zip(container, tissue_order):
             if best_model_per_tissue.get(tissue) == model_name:
                 marker_map = PlotConfig().marker_map
@@ -196,13 +251,13 @@ def plot_metric_by_tissue(
     metric: str,
     miss_level: int,
     plot_dir: Path,
-    # reference_model="Tissue Mean", 
+    # reference_model="tissue Mean", 
     yticks: list=None,
     figsize: tuple=(9,5)
 ) -> None:
     """
-    Bar chart of `metric` ("Pearson r" or "RMSE") per tissue for a given missing level.
-    Tissues are sorted by number of samples (ascending).
+    Bar chart of `metric` ("pearson_r" or "rmse") per tissue for a given missing level.
+    tissues are sorted by number of samples (ascending).
     The best model per tissue is annotated with its marker symbol.
 
     Args:
@@ -214,42 +269,42 @@ def plot_metric_by_tissue(
         - yticks (list or None): custom y-tick positions
     """
     # Filter to the requested missing level if the column exists
-    if "Missing level" in tissue_performance.columns:
-        df = tissue_performance[tissue_performance["Missing level"] == miss_level].copy()
+    if "missing_level" in tissue_performance.columns:
+        df = tissue_performance[tissue_performance["missing_level"] == miss_level].copy()
     else:
         df = tissue_performance.copy()
 
-    order_df = (df[df["Tissue"].unique()].sort_values("Number of samples"))
+    order_df = (df[df["tissue"].unique()].sort_values("n_samples"))
 
     # order_df = (
-    #     df[df["Model"] == reference_model]
-    #     .sort_values("Number of samples")
+    #     df[df["model"] == reference_model]
+    #     .sort_values("n_samples")
     # )
-    tissue_order = order_df["Tissue"].tolist()
+    tissue_order = order_df["tissue"].tolist()
     x_labels = [
         f"{t} (N = {n})"
-        for t, n in zip(order_df["Tissue"], order_df["Number of samples"])
+        for t, n in zip(order_df["tissue"], order_df["n_samples"])
     ]
 
     plt.figure(figsize=figsize)
     ax = plt.gca()
 
-    sns.barplot(data=df, x="Tissue", y=metric, hue="Model (Marker)",
+    sns.barplot(data=df, x="tissue", y=metric, hue="model (Marker)",
                 order=tissue_order, ax=ax)
 
     plt.xticks(range(len(x_labels)), x_labels, ha="center", fontsize=9)
     if yticks:
         plt.yticks(yticks)
-    plt.ylabel("Pearson\u2019s r" if metric == "Pearson r" else metric)
+    plt.ylabel("Pearson\u2019s r" if metric == "pearson_r" else metric)
     plt.grid(axis="y", linestyle="--", alpha=0.5, zorder=0)
-    plt.legend(title="Model", loc="lower left")
+    plt.legend(title="model", loc="lower left")
 
     ax.set_axisbelow(True)
     ax.set_xlabel("")
     ax.spines["top"].set_visible(False)
     ax.spines["right"].set_visible(False)
 
-    best_fn = (lambda p: p.idxmax(axis=1)) if metric == "Pearson r" else (lambda p: p.idxmin(axis=1))
+    best_fn = (lambda p: p.idxmax(axis=1)) if metric == "pearson_r" else (lambda p: p.idxmin(axis=1))
     _add_best_model_markers(ax, df, tissue_order, metric, best_fn)
 
     plt.tight_layout()
@@ -267,7 +322,7 @@ def plot_scatter_by_tissue(
 ) -> None:
     plot_df = build_longform_plot_data(df)
 
-    n_tissues = len(df["Tissue"].unique())
+    n_tissues = len(df["tissue"].unique())
     n_plots = n_tissues
     n_rows = math.ceil(n_plots / n_cols)
     fig, axes = plt.subplots(
@@ -280,38 +335,34 @@ def plot_scatter_by_tissue(
     fig.subplots_adjust(hspace=0.4)
     axes = axes.flatten()
 
-    for i, tissue in enumerate(df["Tissue"].unique()):
+    for i, tissue in enumerate(df["tissue"].unique()):
         ax = axes[i]
-        tissue_df = plot_df[plot_df["Tissue"] == tissue]
-        num_samples = tissue_df["Number of samples"].iloc[0]
+        tissue_df = plot_df[plot_df["tissue"] == tissue]
+        num_samples = tissue_df["n_samples"].iloc[0]
 
-        palette = sns.color_palette()
-        model_colors = {
-            model: palette[i] 
-            for i, model in enumerate(tissue_df["Model"].unique())
-        }
+        colors = [config.model_color[model] for model in df["model"]]
 
         sns.scatterplot(
             data=tissue_df,
-            x="True values",
-            y="Predicted values",
-            hue="Model",
+            x="true_value",
+            y="predicted_value",
+            hue="model",
             alpha=0.5,
             s=25,
             edgecolor="none",
             ax=ax
         )
-        for model_name, model_df in tissue_df.groupby("Model"):
+        for model_name, model_df in tissue_df.groupby("model"):
             sns.kdeplot(
-                x=model_df["True values"],
-                y=model_df["Predicted values"],
+                x=model_df["true_value"],
+                y=model_df["predicted_value"],
                 ax=ax,
                 levels=4,
-                color=model_colors[model_name],
+                color=colors[model_name],
             )
 
-        true_values = tissue_df["True values"]
-        predicted_values = tissue_df["Predicted values"]
+        true_values = tissue_df["true_value"]
+        predicted_values = tissue_df["predicted_value"]
         min_val = min(true_values.min(), predicted_values.min())
         max_val = max(true_values.max(), predicted_values.max())
 
