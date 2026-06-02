@@ -45,7 +45,7 @@ class DatasetBuilder:
 
         # Matrix: samples x (proteins + tissue)
         # Transposed matrix: (proteins + tissue) x samples
-        self.transposed = "tissue" in self.df.index
+        self.transpose = "tissue" in self.df.index
         self.extract_tissue_labels()
 
         self.log_transform = self._resolve_log_transform(cfg.log_transform, model_name)
@@ -80,7 +80,7 @@ class DatasetBuilder:
         return self.dataset_path.parent
     
     def extract_tissue_labels(self) -> None:
-        if self.transposed:
+        if self.transpose:
             self._extract_tissue_from_index()
         else:
             self._extract_tissue_from_columns()
@@ -172,7 +172,7 @@ class DatasetBuilder:
             artificial_missing_mask=self.artificial_missing_mask,
             tissue=self.tissue,
             tissue_mapping=self.tissue_mapping,
-            transpose=self.transposed,
+            transpose=self.transpose,
             normalizer=self.normalizer if self.normalize else None,
             log_transform=self.log_transform,
         )
