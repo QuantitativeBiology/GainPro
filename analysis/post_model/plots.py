@@ -1,27 +1,97 @@
 import math
 import numpy as np
 import pandas as pd
-import seaborn as sns
 from pathlib import Path
+from typing import Callable, Any
+
+import seaborn as sns
 import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
 
-from filters import filter_artificial_missing_entries, filter_tissue_entries
+from filters import filter_tissue_entries
 from config import PlotConfig
 
+config = PlotConfig()
 TRAIN_COLOR = "#fc8b64"
 VAL_COLOR = "#909cc5"
-config = PlotConfig()
+DEFAULT_FIGSIZE = (6, 4)
+
+def use_default_figsize(func: Callable[..., Any]) -> Callable[..., Any]:
+    """Decorator to inject DEFAULT_FIGSIZE if figsize is None or omitted."""
+    def wrapper(*args: Any, **kwargs: Any) -> Any:
+        # If 'figsize' is not provided, or is explicitly passed as None
+        if kwargs.get("figsize") is None:
+            kwargs["figsize"] = DEFAULT_FIGSIZE
+        return func(*args, **kwargs)
+    return wrapper
+
+
+def format_duration(seconds: float) -> str:
+    if seconds < 60:
+        return f"{seconds:.2f}s"
+    elif seconds < 3600:
+        minutes, secs = divmod(seconds, 60)
+        return f"{int(minutes)}m {int(secs)}s"
+    else:
+        hours, remainder = divmod(seconds, 3600)
+        minutes, secs = divmod(remainder, 60)
+        return f"{int(hours)}h {int(minutes)}m {int(secs)}s"
+
+@use_default_figsize
+def plot_execution_time(
+    df: pd.DataFrame,
+    plot_dir: Path,
+    figsize: tuple | None=None,
+) -> None:
+    plt.figure(figsize=figsize)
+    ax = plt.gca()
+
+    df = df.sort_values("execution_time")
+    x = df["execution_time"]
+    y = np.arange(len(df))
+
+    colors = [config.model_color[model] for model in df["model"]]
+
+    ax.barh(y, x, color=colors, height=0.5)
+
+    for _, (val, y_i) in enumerate(zip(x, y)):
+        ax.annotate(
+            format_duration(val),
+            (val, y_i),
+            ha="left",
+            va="center",
+            fontsize=8,
+            xytext=(3, 0),
+            textcoords="offset points",
+        )
+    
+    ax.set_yticks(y)
+    ax.set_yticklabels(df["model"], fontsize=9)
+    ax.set_ylabel("")
+
+    ax.set_xscale("log")
+    ax.set_xticks([])
+    ax.set_xlabel("Execution time")
+
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+
+    plt.tight_layout()
+    path = plot_dir / f"execution_time_by_model.png"
+    plt.savefig(path)
+    print(f"Saved: {path}")
+    
 
 # =================================================
 # =                 1. Loss                       =
 # =================================================
 
+@use_default_figsize
 def plot_loss(
     name_loss: str,
     train_loss: list,
     val_loss: list=None,
-    figsize: tuple=(6,4),
+    figsize: tuple | None=None,
 ) -> None:
     epochs = np.arange(1, len(train_loss) + 1)
 
@@ -68,10 +138,11 @@ def build_longform_plot_data(
     plot_df = pd.DataFrame(rows)
     return plot_df
 
+@use_default_figsize
 def plot_scatter(
     df: pd.DataFrame,
     plot_dir: Path,
-    figsize: tuple=(6,4),
+    figsize: tuple | None=None,
     metrics: dict=None,
 ) -> None:
     model_name = df["model"].unique()[0]
@@ -146,27 +217,25 @@ def plot_scatter(
     plt.savefig(out_path, dpi=150, bbox_inches="tight")
     print(f"Saved: {out_path}")
 
+@use_default_figsize
 def plot_metric(
     df: pd.DataFrame, 
-    metric: str, 
-    miss_level: int, 
+    metric: str,
     plot_dir: Path,
-    figsize: tuple=(4,4),
+    figsize: tuple | None=None,
 ) -> None:
     """
-    Bar chart of `metric` ("pearson_r" or "rmse") for a given missing level.
+    Bar chart of `metric` ("pearson_r" or "rmse").
 
     Args:
         - df (DataFrame): full performance table (may span multiple miss levels)
         - metric (str): column to plot
-        - miss_level (int): which miss level to filter / label in the filename
         - plot_dir (Path)
     """
-    df = df[df["missing_level"] == miss_level].copy()
-    df = df.sort_values(metric, ascending=(metric == "pearson_r"))
-
     plt.figure(figsize=figsize)
     ax = plt.gca()
+
+    df = df.sort_values(metric, ascending=(metric == "pearson_r"))
 
     x = df[metric]
     y = np.arange(len(df))
@@ -200,7 +269,7 @@ def plot_metric(
 
     plt.tight_layout()
     metric_slug = metric.lower().replace(" ", "_").replace("\u2019", "")
-    path = plot_dir / f"{metric_slug}_by_model_miss{miss_level}.png"
+    path = plot_dir / f"{metric_slug}_by_model.png"
     plt.savefig(path)
     print(f"Saved: {path}")
 
@@ -313,7 +382,6 @@ def plot_metric_by_tissue(
     plt.savefig(path)
     plt.show()
     print(f"Saved: {path}")
-
 
 def plot_scatter_by_tissue(
     df: pd.DataFrame,
