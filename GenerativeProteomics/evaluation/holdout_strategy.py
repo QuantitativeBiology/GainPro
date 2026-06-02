@@ -7,6 +7,7 @@ from sklearn.model_selection import train_test_split
 from utils.data.dataset import Data
 from utils.metrics.metrics import rmse
 from wrappers.gain import GainImputer
+from wrappers.ae import AutoEncoderImputer
 from utils.writers.experiment_writer import ExperimentWriter
 from evaluation.evaluation_strategy import EvaluationStrategy
 
@@ -52,13 +53,18 @@ class HoldoutStrategy(EvaluationStrategy):
         x_true_tensor = torch.tensor(x_true, device=data.device, dtype=torch.float32)
         x_missing = data.missing.detach()
 
-        train_idx, val_idx = train_test_split(
-            np.arange(x_missing.shape[0]),
-            test_size=val_size,
-            random_state=seed,
-        )
-        
         imputer = imputer_factory()
+
+        if isinstance(imputer, AutoEncoderImputer):
+            train_idx, val_idx = train_test_split(
+                np.arange(x_missing.shape[0]),
+                test_size=val_size,
+                random_state=seed,
+            )
+        else:
+            all_idx = np.arange(x_missing.shape[0])
+            train_idx, val_idx = all_idx, all_idx
+            
         experiment_writer.metadata_writer.set_start_time(datetime.now())
 
         imputer.train(
