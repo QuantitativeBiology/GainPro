@@ -55,7 +55,7 @@ class HoldoutStrategy(EvaluationStrategy):
 
         imputer = imputer_factory()
 
-        if isinstance(imputer, AutoEncoderImputer):
+        if isinstance(imputer, AutoEncoderImputer) or isinstance(imputer, GainImputer):
             train_idx, val_idx = train_test_split(
                 np.arange(x_missing.shape[0]),
                 test_size=val_size,
@@ -84,16 +84,16 @@ class HoldoutStrategy(EvaluationStrategy):
         experiment_writer.metadata_writer.set_end_time(datetime.now())
         x_pred = x_pred.numpy()
 
-        if isinstance(imputer, GainImputer):
-            discriminator_precision_recall = imputer.evaluate_discriminator(
-                x_missing=x_missing, 
-                mask_observed=mask_observed_tensor,
-                mask_eval=mask_eval_tensor,
-                positive_label=positive_label, 
-            )
-            experiment_writer.result_writer.save_precision_recall_discriminator(
-                precision_recall=discriminator_precision_recall,
-            )
+        # if isinstance(imputer, GainImputer):
+        #     discriminator_precision_recall = imputer.evaluate_discriminator(
+        #         x_missing=x_missing, 
+        #         mask_observed=mask_observed_tensor,
+        #         mask_eval=mask_eval_tensor,
+        #         positive_label=positive_label, 
+        #     )
+        #     experiment_writer.result_writer.save_precision_recall_discriminator(
+        #         precision_recall=discriminator_precision_recall,
+        #     )
 
         test_rmse = rmse(x_true, x_pred, mask_eval)
         logging.info(f"RMSE: {test_rmse}")

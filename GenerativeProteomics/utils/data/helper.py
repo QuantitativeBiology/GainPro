@@ -212,7 +212,7 @@ def compute_evaluation_mask(
 def generate_hint(
     observed_mask, 
     hint_rate: float,
-):
+) -> np.ndarray:
     # For each entry, with probability hint_rate, reveal the true mask value
     # Otherwise, give 0.5 (uninformative)
     reveal = np.random.binomial(1, hint_rate, observed_mask.shape)  # 1 = reveal this entry

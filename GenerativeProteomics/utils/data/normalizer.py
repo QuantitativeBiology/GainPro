@@ -67,7 +67,7 @@ class StandardNormalizer(Normalizer):
 
     @property
     def name(self) -> str:
-        return "Standard Scaler"
+        return "standard"
 
     def fit(
         self, 
@@ -136,7 +136,7 @@ class MinMaxNormalizer(Normalizer):
 
     @property
     def name(self) -> str:
-        return "Min-Max Scaler"
+        return "minmax"
 
     def fit(
         self, 

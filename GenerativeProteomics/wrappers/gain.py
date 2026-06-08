@@ -1,14 +1,16 @@
 import torch
 import torch.nn as nn
+from torch.utils.data import TensorDataset, DataLoader
 import numpy as np
+from typing import Optional
 
 from utils.helper import load_yaml
+from utils.data.dataset import Data
 from utils.data.normalizer_registry import get_output_activation
 
 from wrappers.imputer import Imputer
 
 from models.GainPro.gain import Gain
-from models.GainPro.trainer import Trainer
 
 from utils.configs.model_config import GainConfig
 from utils.configs.training_config import GainTrainingConfig
@@ -21,29 +23,26 @@ class GainImputer(Imputer):
         gain_hypers: GainConfig,
         generator_output_activation: nn.Module,
         training_cfg: GainTrainingConfig,
-    ) -> "GainImputer":
+    ) -> None:
+        super().__init__()
         self.gain = Gain(
             input_dim=input_dim,
-            hidden_dim=gain_hypers.hidden_dim,
-            num_hidden_layers_generator=gain_hypers.num_hidden_layers_generator,
-            num_hidden_layers_discriminator=gain_hypers.num_hidden_layers_discriminator,
+            hypers=gain_hypers,
+            training_cfg=training_cfg,
             generator_output_activation=generator_output_activation,
         )
-        self.trainer = Trainer(
-            model=self.gain,
-            training_hypers=training_cfg
-        )
+        self.training_cfg=training_cfg
     
     @classmethod
     def from_config(
         cls,
-        cfg,
-        data,
+        cfg: GainConfig,
+        data: Data,
     ) -> "GainImputer":
         return cls(
             input_dim=data.input_dim,
             gain_hypers=GainConfig.model_validate(load_yaml(cfg.model_cfg_path)),
-            training_hypers=GainTrainingConfig.model_validate(load_yaml(cfg.training_cfg_path)),
+            training_cfg=GainTrainingConfig.model_validate(load_yaml(cfg.training_cfg_path)),
             generator_output_activation=get_output_activation(data.normalizer)
         )
 
@@ -53,24 +52,30 @@ class GainImputer(Imputer):
         x_true: torch.Tensor,
         mask_train: torch.Tensor,
         experiment_writer: ExperimentWriter,
+        x_val: Optional[torch.Tensor],
+        x_true_val: Optional[torch.Tensor],
+        mask_val: Optional[torch.Tensor],
     ) -> None:
-        self.trainer.train(
-            x_train=x_train,
-            x_true=x_true,
-            observed_mask=mask_train,
-            experiment_writer=experiment_writer,
-        )
+        _ = experiment_writer
+        dataset = TensorDataset(x_true, x_train, mask_train)
+        train_loader = DataLoader(dataset, batch_size=self.training_cfg.batch_size, shuffle=True)
 
+        val_loader = None
+        if x_val is not None:
+            val_dataset = TensorDataset(x_true_val, x_val, mask_val)
+            val_loader = DataLoader(val_dataset, batch_size=self.training_cfg.batch_size, shuffle=False)
+
+        self.gain.fit(train_loader=train_loader, val_loader=val_loader)
+    
     def predict(
         self,
         x_missing: torch.Tensor,
-        mask: torch.Tensor,
-    ) -> np.ndarray:
-        x_hat = self.trainer.impute(
-            x_missing=x_missing,
-            mask=mask,
-        )
-        return x_hat
+        mask: Optional[torch.Tensor],
+    ) -> torch.Tensor:
+        test_dataset = TensorDataset(x_missing, mask)
+        test_loader = DataLoader(test_dataset, batch_size=self.training_cfg.batch_size, shuffle=False)
+        x_pred = self.gain.predict(test_loader)
+        return x_pred
     
     def evaluate_discriminator(
         self,
