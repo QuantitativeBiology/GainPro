@@ -1,171 +1,214 @@
 # Generative Proteomics
 
-[![PyPi Version](https://img.shields.io/pypi/v/GenerativeProteomics?label=PyPi&color=blue&style=flat&logo=pypi)](https://pypi.org/project/GenerativeProteomics/)
-[![Colab](https://img.shields.io/badge/Google_Colab-0061F2?style=flat&logo=googlecolab&color=blue&label=Colab&colorB=grey)](https://colab.research.google.com/drive/1ihtmsv_UvEz74YrLHZvATu1y2qH4X9-r?usp=sharing)
-[![Documentation](https://img.shields.io/badge/docs-read%20the%20docs-blue)](https://generativeproteomics.readthedocs.io/en/latest/)
-[![HuggingFace](https://img.shields.io/badge/Hugging_Face-grey?style=flat&logo=huggingface&color=grey)](https://huggingface.co/QuantitativeBiology)
-
-In this repository you may find a PyTorch implementation of Generative Adversarial Imputation Networks (GAIN) [[1]](#1) for imputing missing iBAQ values in proteomics datasets.
+todo compare with previous README
 
 ## Table of Contents
 
-- [Repository Strucure](#repository-structure)
-- [Installation](#installation)
-- [Basic Usage](#basic-usage)
-- [GitHub](#github)
-- [Demo](#demo)
-- [References](#reference)
+- [Generative Proteomics](#generative-proteomics)
+  - [Table of Contents](#table-of-contents)
+  - [Overview](#overview)
+  - [Installation](#installation)
+  - [Quickstart](#quickstart)
+  - [Configuration Files](#configuration-files)
+    - [Datasets](#datasets)
+    - [Models](#models)
+    - [Train](#train)
+    - [Benchmark](#benchmark)
+  - [Imputation Models](#imputation-models)
+    - [GAIN](#gain)
+    - [Autoencoder](#autoencoder)
+    - [MissForest](#missforest)
+    - [Tissue Mean \& Global Mean](#tissue-mean--global-mean)
+    - [Model Comparison](#model-comparison)
+  - [Usage](#usage)
+  - [Reproducing Results](#reproducing-results)
+  - [Project Structure](#project-structure)
+  - [Contributing](#contributing)
 
-## Repository Structure
+## Overview
 
-Here are the main components you'll find in this repository:
+todo
 
-1. .github/workflows 
-    - contains the code for the automatization of the tests in the repository
-2. Datasets
-    - directory with datasets with missing values from PRIDE that can be used for testing 
-3. GenerativeProteomics: 
-    - Contains the core package source code 
-4. docs/source
-    - contains the information used for the documentation of our work (ReadtheDocs)
-5. tests:
-    - batery of unittests to assess the model's functionality
-6. use-case
-    - set of clear examples on how to use our model's functionalities 
-    - includes examples on how to install the package and use it, how to run the tests, and how to download and use a pre-trained model from HuggingFace
-
+2–3 sentences explaining: what problem this solves, what approach it takes, and who it is for.
 
 ## Installation
 
-### Pip install
+```bash
+git clone https://github.com/QuantitativeBiology/GainPro.git
+cd GainPro
 
-We have submitted a package to the Python Package Index (PyPI) for easy installation. You can install the package using the following command:
+# Create and activate a virtual environment (recommended)
+python -m venv .gainpro
+source .gainpro/bin/activate  
+
+# Install dependencies
+pip install -r requirements.txt
+```
+
+**Requirements:** Python $\geq$ 3.10
+
+## Quickstart
 
 ```bash
-pip install GenerativeProteomics
+cd GainPro
+source .gainpro/bin/activate
+cd GenerativeProteomics
+
+# Run benchmark
+python main.py benchmark \
+    --config ../configs/benchmark/protogain/holdout/benchmark_miss10.yaml \
+    --dataset ../configs/datasets/PXD030304/PXD030304_no_control_multi_peptide_50pct_tissue/PXD030304_no_control_multi_peptide_50pct_tissue_transpose.yaml
 ```
 
-This way, you can install the package and its dependencies in one go.
+## Configuration Files
 
-#### Python API 
+All configuration lives in `configs/`. Each file controls a distinct phase of the pipeline.
 
-```python
-from GenerativeProteomics import utils, Network, Params, Metrics, Data
-import torch
-import pandas as pd
+| File | Purpose | Pipeline phase |
+| ------ | --------- | --------- |
+| `dataset.yaml` | Dataset path and preprocessing steps | All phases |
+| `model.yaml` | Per-model hyperparameters | Train and benchmark |
+| `train.yaml` | Training loop: epochs, batch size, optimizer | Train and benchmark |
+| `benchmark.yaml` | Evaluation runs: number of runs, seeds, evaluation strategy, model(s) to run | Benchmark |
 
-# Load your dataset
-dataset_path = "your_dataset.tsv"
-dataset_df = utils.build_protein_matrix(dataset_path) # use this function if dataset is a tsv
-#dataset_df = pd.read_csv(dataset_path)  # if your dataset is a csv
-dataset = dataset_df.values
-missing_header = dataset_df.columns.tolist()
+> **Note:** GAIN requires two additional fields in `train.yaml`: `hint_rate` and `alpha`.
 
-# Define your parameters
-params = Params(
-    input=dataset_path,
-    output="imputed.csv",
-    ref=None,
-    output_folder=".",
-    num_iterations=2001,
-    batch_size=128,
-    alpha=10,
-    miss_rate=0.1,
-    hint_rate=0.9,
-    lr_D=0.001,
-    lr_G=0.001,
-    override=1,
-    output_all=1,
-)
+### Datasets
 
-# Define model architecture
-input_dim = dataset.shape[1]
-h_dim = input_dim
-net_G = torch.nn.Sequential(
-    torch.nn.Linear(input_dim * 2, h_dim),
-    torch.nn.Sigmoid()
-)
-net_D = torch.nn.Sequential(
-    torch.nn.Linear(input_dim * 2, h_dim),
-    torch.nn.Sigmoid()
-)
+```yaml
+# configs/datasets/...
+name: string            # Name for readability, not used by the pipeline
 
-# Set up the model and data
-metrics = Metrics(params)
-network = Network(hypers=params, net_G=net_G, net_D=net_D, metrics=metrics)
-data = Data(dataset=dataset, miss_rate=0.2, hint_rate=0.9, ref=None)
+dataset_path: string    # Path to the CSV/TSV/anndata file, relative to `GenerativeProteomics`
 
-# Run evaluation and training
-network.evaluate(data=data, missing_header=missing_header)
-network.train(data=data, missing_header=missing_header)
-print("Final Matrix:\n", metrics.data_imputed) 
+log_transform: bool     # ⚠️ Apply log-transform before imputation.
+                        # You are responsible for ensuring this matches
+                        # your data's scale — the model is unaware of it.
+
+normalizer: string      # Options: ["auto", "none", "minmax", "standard"]. 
+                        # "auto" lets each model use its default normalizer.
+                        # Override with: "minmax", "standard".
 ```
-For a more detailed explanation on how to use the model and all the functionalities we have to offer, you can open the `use-case` directory.
 
-### GitHub
+A full example is available [PXD030304_no_control_multi_peptide_50pct_tissue.yaml](configs/datasets/PXD030304/PXD030304_no_control_multi_peptide_50pct_tissue/PXD030304_no_control_multi_peptide_50pct_tissue.yaml).
 
-If you prefer to use the code of the GenerativeProteomics model directly, you can access it in our GitHub repository and follow the next sequence of commands.
+> **Default normalizers per model:**
+>
+> | Model | Default |
+> | ------- | --------- |
+> | GAIN | minmax |
+> | Autoencoder | standard |
+> | MissForest | none |
+> | Tissue Mean | none |
+> | Global Mean | none |
 
-1. Clone this repository:  `git clone https://github.com/QuantitativeBiology/GenerativeProteomics/`
-2. Create a Python environment: `conda create -n proto python=3.10` if you have conda installed
-3. Activate the previously created environment: `conda activate proto`
-4. Install the necessary packages: `pip install -r libraries.txt`
+All fields and their types are validated on load via a [Pydantic BaseModel](GenerativeProteomics/utils/configs/dataset_config.py).
+Passing an invalid value raises a `ValidationError` before the pipeline starts.
 
+> **Custom normalizers:** extend the base class in [`normalizer.py`](GenerativeProteomics/utils/data/normalizer.py),
+> register it in [`normalizer_registry`](GenerativeProteomics/utils/data/normalizer_registry.py), and add the new key to the `normalizer` field in
+> [`dataset_config.py`](GenerativeProteomics/utils/configs/dataset_config.py).
 
-#### How to Use GenerativeProteomics
+### Models
 
-If you just want to impute a general dataset, the most straightforward and simplest way to run GenerativeProteomics is to run: `python generativeproteomics.py -i /path/to/file_to_impute.csv`
-Running in this manner will result in two separate training phases.
+todo
 
-1) Evaluation run: In this run a percentage of the values (10% by default) are concealed during the training phase and then the dataset is imputed. The RMSE is calculated with those hidden values as targets and at the end of the training phase a `test_imputed.csv` file will be created containing the original hidden values and the resulting imputation, this way you can have an estimation of the imputation accuracy.
+```yaml
+```
 
-2) Imputation run: Then a proper training phase takes place using the entire dataset. An `imputed.csv` file will be created containing the imputed dataset.
+### Train
 
-However, there are a few arguments which you may want to change. You can do this using a parameters.json file (you may find an example in `GenerativeProteomics/breast/parameters.json`) or you can choose them directly in the command line.
+todo
 
-Run with a parameters.json file: `python generativeproteomics.py --parameters /path/to/parameters.json`<br>
-Run with command line arguments: `python generativeproteomics.py -i /path/to/file_to_impute.csv -o imputed_name --ofolder ./results/ --it 2001`
+```yaml
+```
 
-#### How to import and use a pre-trained model 
+### Benchmark
 
-Instead of running our trained model GenerativeProteomics, you can always use other inference forms. To do so, all you need to do is use the --model flag.
+todo
 
-Run the following command in order to use an alternative imputation form: `python generativeproteomics.py -i /path/to/file_to_impute.csv --model <name_of_model>`
+```yaml
+```
 
-#### Arguments:
+## Imputation Models
 
-`-i`: Path to file to impute<br> 
-`-o`: Name of imputed file<br> 
-`--ofolder`: Path to the output folder<br> 
-`--it`: Number of iterations to train the model<br> 
-`--miss`: The percentage of values to be concealed during the evaluation run (from `0` to `1`)<br>
-`--outall`: Set this argument to `1` if you want to output every metric<br> 
-`--override`: Set this argument to `1` if you want to delete the previously created files when writing the new output<br> 
-`--model`: Contains the name of the imputation form to run. Default value is the GenerativeProteomics model.
+todo: add model descriptions and overall improvement
 
+### GAIN
 
-If you want to test the efficacy of the code you may give a reference file containing a complete version of the dataset (without missing values): `python generativeproteomics.py -i /path/to/file_to_impute.csv --ref /path/to/complete_dataset.csv`
+Generative Adversarial Imputation Network. GAN-based approach that learns the data distribution.
+Used PyTorch Lightning for training.
 
-Running this way will calculate the RMSE of the imputation in relation to the complete dataset.
+### Autoencoder
 
+Used PyTorch Lightning for training.
 
-#### Demo
+### MissForest
 
-In this repository you may find a folder named `breast`, inside it you have a breast cancer diagnostic dataset [[2]](#2) which you may use to try out the code.
+- **Best for:** Smaller datasets
 
-`breast.csv`: complete dataset<br>
-`breastMissing_20.csv`: the same dataset but with 20% of its values taken out
+### Tissue Mean & Global Mean
 
+Simple statistical baselines. Tissue mean imputes using the per-tissue (group) average; global mean uses the dataset-wide average.
 
-To simply impute `breastMissing_20.csv` run: `python generativeproteomics.py -i ./breast/breastMissing_20.csv` <br>
-If you want to compare the imputation with the original dataset run: `python generativeproteomics.py -i ./breast/breastMissing_20.csv --ref ./breast/breast.csv` or `python generativeproteomics.py --parameters ./breast/parameters.json`
+- **Best for:** Sanity checks, fast baselines
 
+### Model Comparison
 
-If you want to go deep in the analysis of every metric you either set `--outall` to `1` or you run the code in an IPython console, this way you can access every variable you want in the `metrics` object, e.g. `metrics.loss_D`.
+| Model | Accuracy | Speed | Mixed types | Notes |
+| ------- | ---------- | ------- | ------------- | ------- |
+| GAIN | | | ❌ | |
+| Autoencoder | | | ❌ | GPU recommended |
+| MissForest | | | ✅ | Good default |
+| Tissue Mean | | | ✅ | Baseline only |
+| Global Mean | | | ✅ | Baseline only |
 
+## Usage
 
-## References
-<a id="1">[1]</a> 
-J. Yoon, J. Jordon & M. van der Schaar (2018). GAIN: Missing Data Imputation using Generative Adversarial Nets <br>
-<a id="2">[2]</a> 
-https://archive.ics.uci.edu/dataset/17/breast+cancer+wisconsin+diagnostic
+todo: incomplete
+
+```bash
+# For a full list of CLI options:
+cd GenerativeProteomics
+python main.py --help
+
+# For a specific command:
+python main.py benchmark --help
+```
+
+## Reproducing Results
+
+todo: incomplete
+
+> todo: Pin environment with `pip freeze > requirements-lock.txt` for exact reproducibility.
+
+## Project Structure
+
+todo: incomplete
+
+```
+GainPro/
+├── configs/
+│   ├── benchmark.yaml
+│   ├── datasets.yaml
+│   ├── models.yaml
+│   └── train.yaml
+├── data/
+│   └── ...
+├── models/
+│   ├── GainPro/
+│   ├── AutoEncoder/
+│   └── baselines.py
+├── results/
+├── main.py
+├── requirements.txt
+└── README.md
+```
+
+## Contributing
+
+todo: update how
+
+1. Fork the repo and create a feature branch: `git checkout -b feat/your-feature`
+2. Commit your changes and open a pull request.
+3. For new imputation models, add an entry to `models.yaml` and the [Model Comparison](#model-comparison) table.
