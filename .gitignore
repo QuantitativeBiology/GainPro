@@ -8,6 +8,7 @@ GenerativeProteomics/lightning_logs
 .DS_Store
 *.png
 running.md
+todo.md
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
