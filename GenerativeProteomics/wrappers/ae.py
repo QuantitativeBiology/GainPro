@@ -6,7 +6,8 @@ from utils.helper import load_yaml
 from utils.data.dataset import Data
 from wrappers.imputer import Imputer
 from models.AutoEncoder.autoencoder import AutoEncoder
-from utils.configs.model_config import AutoEncoderConfig
+from utils.configs.model_entry_config import ModelEntryConfig
+from utils.configs.model_config import AutoEncoderConfig, FillStrategy
 from utils.configs.training_config import AutoEncoderTrainingConfig
 from utils.writers.experiment_writer import ExperimentWriter
 
@@ -36,6 +37,14 @@ class AutoEncoderImputer(Imputer):
             hypers=AutoEncoderConfig.model_validate(load_yaml(cfg.model_cfg_path)),
             training_cfg=AutoEncoderTrainingConfig.model_validate(load_yaml(cfg.training_cfg_path)),
         )
+    
+    @classmethod
+    def get_fill_strategy(
+        self, 
+        model_entry: ModelEntryConfig,
+    ) -> FillStrategy:
+        cfg = AutoEncoderConfig.model_validate(load_yaml(model_entry.model_cfg_path))
+        return cfg.fill_strategy  # default "zero" defined in AutoEncoderConfig
     
     def train(
         self,

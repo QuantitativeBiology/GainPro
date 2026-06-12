@@ -8,6 +8,7 @@ from pathlib import Path
 
 from utils.data.dataset import Data
 from utils.configs.dataset_config import DatasetConfig
+from utils.configs.model_config import FillStrategy
 from utils.data.normalizer_registry import build_normalizer
 from utils.data.helper import (
     load_csv,
@@ -133,12 +134,31 @@ class DatasetBuilder:
                 columns=df.columns,
             )
         if self.normalize:
-            df = self.normalizer.fit(df, observed_mask).transform(df)
+            if self.transpose:
+                df_T = df.T
+                mask_T = observed_mask.T
+                df_T = self.normalizer.fit(df_T, mask_T).transform(df_T)
+                df = df_T.T
+            else:
+                df = self.normalizer.fit(df, observed_mask).transform(df)
         return df
+    
+    def _fill_missing_values(
+        self, 
+        fill_strategy: FillStrategy
+    ) -> None:
+        if fill_strategy == "zero":
+            self.reference = self.reference.fillna(0)
+            self.missing = self.missing.fillna(0)
+        if fill_strategy == "mean":
+            mean = self.reference.mean().mean()
+            self.reference = self.reference.fillna(mean)
+            self.missing = self.missing.fillna(mean)
+            logger.info(f"\n Overall mean expression: {mean}")
 
     def build(
         self, 
-        fill_zeros: bool,
+        fill_strategy: FillStrategy="none",
         seed: int=42,
     ) -> Data:
         self.observed_mask = compute_observed_mask(self.df)
@@ -153,7 +173,7 @@ class DatasetBuilder:
             f"\n Dataset shape: {self.reference.shape}"
             f"\n Original missing rate: {self.original_missingness:.2%}"
             f"\n Current missing rate: {self.current_missingness:.2%}"
-            f"\n Zero-fill: {'enabled' if fill_zeros else 'disabled'}"
+            f"\n Fill strategy: {fill_strategy}"
         )
 
         self.artificial_missing_mask = compute_evaluation_mask(
@@ -161,9 +181,7 @@ class DatasetBuilder:
             missing_df=self.missing
         )
 
-        if fill_zeros:
-            self.reference = self.reference.fillna(0)
-            self.missing = self.missing.fillna(0)
+        self._fill_missing_values(fill_strategy=fill_strategy)
 
         data = Data(
             reference=self.reference,

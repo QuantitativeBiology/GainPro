@@ -9,12 +9,7 @@ from utils.paths import get_project_root
 from utils.data.dataset_builder import DatasetBuilder
 from utils.configs.dataset_config import DatasetConfig
 from utils.configs.benchmark_config import BenchmarkConfig
-from utils.configs.model_config import (
-    GainConfig, 
-    MissForestConfig, 
-    AutoEncoderConfig, 
-    GlobalMeanConfig
-)
+from utils.configs.model_entry_config import ModelEntryConfig
 from utils.writers.dataset_writer import DatasetWriter
 from utils.writers.experiment_writer import ExperimentWriter
 from utils.helper import load_benchmark, load_yaml, make_run_dir
@@ -24,7 +19,7 @@ logger = logging.getLogger(__name__)
 def execute_run(
     seed: int,
     run_dir: Path,
-    model_cfg: GainConfig | MissForestConfig | AutoEncoderConfig | GlobalMeanConfig,
+    model_cfg: ModelEntryConfig,
     dataset_cfg: DatasetConfig,
     miss_rate: float,
     evaluator_kwargs: dict,
@@ -34,7 +29,7 @@ def execute_run(
     manager = ImputationManager(model_cfg=model_cfg)
 
     builder = DatasetBuilder(cfg=dataset_cfg, model_name=model_cfg.name, miss_rate=miss_rate)
-    data = builder.build(fill_zeros=manager.require_zero_fill, seed=seed)
+    data = builder.build(fill_strategy=manager.fill_strategy, seed=seed)
     manager.set_data(data)
 
     dataset_writer = DatasetWriter()
@@ -53,7 +48,7 @@ def execute_run(
 
 def run_holdout(
     benchmark_cfg: BenchmarkConfig,
-    model_cfg: GainConfig | MissForestConfig | AutoEncoderConfig | GlobalMeanConfig,
+    model_cfg: ModelEntryConfig,
     dataset_cfg: DatasetConfig,
     benchmark_dir: Path,
 ) -> None:
@@ -82,7 +77,7 @@ def run_holdout(
 
 def run_groupkfold(
     benchmark_cfg: BenchmarkConfig,
-    model_cfg: GainConfig | MissForestConfig | AutoEncoderConfig | GlobalMeanConfig,
+    model_cfg: ModelEntryConfig,
     dataset_cfg: DatasetConfig,
     benchmark_dir: Path,
 ) -> None:

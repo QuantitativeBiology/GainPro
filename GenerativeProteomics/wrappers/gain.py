@@ -12,7 +12,8 @@ from wrappers.imputer import Imputer
 
 from models.GainPro.gain import Gain
 
-from utils.configs.model_config import GainConfig
+from utils.configs.model_config import GainConfig, FillStrategy
+from utils.configs.model_entry_config import ModelEntryConfig
 from utils.configs.training_config import GainTrainingConfig
 from utils.writers.experiment_writer import ExperimentWriter
 
@@ -45,6 +46,14 @@ class GainImputer(Imputer):
             training_cfg=GainTrainingConfig.model_validate(load_yaml(cfg.training_cfg_path)),
             generator_output_activation=get_output_activation(data.normalizer)
         )
+    
+    @classmethod
+    def get_fill_strategy(
+        self, 
+        model_entry: ModelEntryConfig,
+    ) -> FillStrategy:
+        cfg = GainConfig.model_validate(load_yaml(model_entry.model_cfg_path))
+        return cfg.fill_strategy  # default "zero" defined in GainConfig
 
     def train(
         self,

@@ -1,3 +1,4 @@
-name: "autoencoder"
+name: autoencoder
 hidden_dims: [128, 64]
 latent_dim: 64
+fill_strategy: mean

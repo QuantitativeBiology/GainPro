@@ -4,6 +4,7 @@ from wrappers.ae import AutoEncoderImputer
 from wrappers.global_mean import GlobalMeanImputer
 from wrappers.tissue_mean import TissueMeanImputer
 from wrappers.missforest import MissForestRImputer
+from utils.configs.model_config import FillStrategy
 
 
 class ImputationManager:
@@ -17,9 +18,6 @@ class ImputationManager:
         "tissue_mean": TissueMeanImputer,
         "missForest": MissForestRImputer,
     }
-
-    # Models that need NaN positions filled with zero before training
-    ZERO_FILL_MODELS: frozenset[str] = frozenset({"protogain", "autoencoder"})
 
     def __init__(self, model_cfg) -> None:
         self.model_cfg = model_cfg
@@ -36,9 +34,10 @@ class ImputationManager:
         return cls
     
     @property
-    def require_zero_fill(self) -> bool:
-        """Whether this model requires NaN positions to be zero-filled."""
-        return self.model_cfg.name in self.ZERO_FILL_MODELS
+    def fill_strategy(self) -> FillStrategy:
+        if hasattr(self.cls, "get_fill_strategy"):
+            return self.cls.get_fill_strategy(self.model_cfg)
+        return "none"
     
     def set_data(self, data) -> None:
         self.data = data
