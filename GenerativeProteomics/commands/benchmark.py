@@ -27,6 +27,6 @@ def add_parser(subparsers):
 
 def run(args) -> None:
     run_benchmark(
-        benchmark_cfg_path=Path(args.cfg), 
+        benchmark_cfg_path=Path(args.config), 
         dataset_cfg_path=Path(args.dataset)
     )
