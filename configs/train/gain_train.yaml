@@ -1,9 +1,9 @@
 num_epochs: 100
-batch_size: 128
+batch_size: 1000
 
 generator_optimizer:
-  lr: 1.0e-5
-  weight_decay: 0.5
+  lr: 1.0e-3
+  weight_decay: 1e-4
 generator_scheduler:
   step: 100
   gamma: 0.5

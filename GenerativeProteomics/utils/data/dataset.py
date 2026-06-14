@@ -50,9 +50,9 @@ class Data:
         values: np.ndarray
     ) -> np.ndarray:
         """Reverse all transformations applied during preprocessing."""
-        values = self._denormalize(values)
-        values = self._inverse_log2p1(values)
-        return values
+        if self.transpose:
+            return self._inverse_log2p1(self._denormalize(values.T).T)
+        return self._inverse_log2p1(self._denormalize(values))
 
     def _denormalize(
         self,

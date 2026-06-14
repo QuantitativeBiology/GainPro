@@ -5,6 +5,7 @@ from datetime import datetime
 from sklearn.model_selection import train_test_split
 
 from utils.data.dataset import Data
+from utils.data.normalizer import MinMaxNormalizer
 from utils.metrics.metrics import rmse
 from wrappers.gain import GainImputer
 from wrappers.ae import AutoEncoderImputer
@@ -76,13 +77,14 @@ class HoldoutStrategy(EvaluationStrategy):
             mask_val=mask_train_tensor[val_idx],
             experiment_writer=experiment_writer,
         )
+        # mask_impute = (mask_eval == True) | (observed_mask == False) # impute artificial hidden entries and original missing entries
         mask_impute = (mask_eval == True) | (observed_mask == False) # impute artificial hidden entries and original missing entries
         x_pred = imputer.predict(
-            x_missing=x_missing,
+            x_missing=x_missing.to(device=data.device),
             mask=torch.tensor(mask_impute, device=data.device),
         )
         experiment_writer.metadata_writer.set_end_time(datetime.now())
-        x_pred = x_pred.numpy()
+        x_pred = x_pred.detach().cpu().numpy()
 
         # if isinstance(imputer, GainImputer):
         #     discriminator_precision_recall = imputer.evaluate_discriminator(
@@ -103,6 +105,24 @@ class HoldoutStrategy(EvaluationStrategy):
             f"\n X: {x_true}"
             f"\n X hat: {x_pred}"
             f"\n Mask: {mask_train}"
+        )
+
+        if isinstance(data.normalizer, MinMaxNormalizer):
+            logger.debug(
+                f"\n Data stats"
+                f"\n    Mins Mean: {data.normalizer.mins.mean()}"
+                f"\n    Maxs Mean: {data.normalizer.maxs.mean()}"
+                f"\n    Ranges Mean: {data.normalizer.ranges.mean()}"
+            )
+
+        logger.debug(
+            f"\n Observed entries"
+            f"\n In normalized space"
+            f"\n    X predicted mean: {x_pred[observed_mask == 1].mean()}"
+            f"\n    X true mean: {x_true[observed_mask == 1].mean()}"
+            f"\n After inverse transformation"
+            f"\n    X predicted mean: {data.inverse_transform(x_pred)[observed_mask == 1].mean()}"
+            f"\n    X true mean: {data.inverse_transform(x_true)[observed_mask == 1].mean()}"
         )
 
         x_pred_out = data.inverse_transform(x_pred)

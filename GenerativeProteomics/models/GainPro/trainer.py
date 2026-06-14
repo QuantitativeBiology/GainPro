@@ -253,7 +253,7 @@ class Trainer:
             logger.info(f"\t Epoch {ep}/{self.num_epochs}")
 
             hint = generate_hint(observed_mask.detach().cpu().numpy(), self.hint_rate)
-            hint = torch.tensor(hint, device=self.device, dtype=torch.float32)
+            hint = hint.to(self.device)
 
             discriminator_loss, generator_loss, generator_rmse, generator_entropy, rmse = self.epoch(
                 x=x_train,

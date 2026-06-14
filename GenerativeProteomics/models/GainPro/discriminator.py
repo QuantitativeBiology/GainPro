@@ -21,12 +21,10 @@ class Discriminator(nn.Module):
         # hint: shape (batch, input_dim)
         # After concatenation -> (batch, 2 * input_dim)
         self.layers.append(nn.Linear(self.input_dim * 2, self.hidden_dim))
-        self.layers.append(nn.BatchNorm1d(self.hidden_dim))
         self.layers.append(nn.LeakyReLU())
 
         for _ in range(num_hidden_layers):
             self.layers.append(nn.Linear(self.hidden_dim, self.hidden_dim))
-            self.layers.append(nn.BatchNorm1d(self.hidden_dim))
             self.layers.append(nn.LeakyReLU())
         
         self.layers.append(nn.Linear(self.hidden_dim, self.input_dim))
@@ -45,9 +43,6 @@ class Discriminator(nn.Module):
                     nn.init.kaiming_normal_(m.weight, nonlinearity='leaky_relu')
                 if m.bias is not None:
                     nn.init.constant_(m.bias, 0)
-            elif isinstance(m, nn.BatchNorm1d):
-                nn.init.constant_(m.weight, 1)
-                nn.init.constant_(m.bias, 0)
     
     def forward(
         self,

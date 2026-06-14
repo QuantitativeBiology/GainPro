@@ -45,6 +45,5 @@ def generator_mask_loss(
         return torch.tensor(0.0, device=mask.device, requires_grad=True)
 
     criterion = nn.BCEWithLogitsLoss(reduction="mean")
-    # Generator wants discriminator maximally confused (output = 0.5)
-    targets = torch.full_like(mask_hat[b_mask], 0.5)
+    targets = torch.ones_like(mask_hat[b_mask])
     return criterion(mask_hat[b_mask], targets)

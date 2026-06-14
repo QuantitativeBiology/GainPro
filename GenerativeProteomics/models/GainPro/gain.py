@@ -56,30 +56,10 @@ class Gain(pl.LightningModule):
         batch,
     ) -> dict:
         x_hat = self.generator(x=batch["x"], mask=batch["mask"])
-        mask_hat = self.discriminator(x_imputed=batch["x"], hint=batch["hint"])
+        mask = batch["mask"]
+        x_imputed = mask * batch["x"] + (1 - mask) * x_hat
+        mask_hat = self.discriminator(x_imputed=x_imputed, hint=batch["hint"])
         return {"x_hat": x_hat, "mask_hat": mask_hat}
-    
-    def _compute_losses(
-        self,
-        batch,
-        out,
-    ) -> dict:
-        # binary cross entropy generator and discriminator
-        rmse = reconstruction_loss(x=batch["x"], x_hat=out["x_hat"], mask=batch["mask"])
-
-        discriminator_entropy = 0 #todo não sei muito bem quando é que deve atualizar.
-
-        discriminator_loss = discriminator_mask_loss(
-            mask=batch["mask"], 
-            mask_hat=out["mask_hat"], 
-            hint=batch["hint"]
-        )
-
-        return {
-            "rmse": rmse,
-            "discriminator_entropy": discriminator_entropy,
-            "discriminator_loss": discriminator_loss
-        }
     
     def configure_optimizers(
         self
@@ -122,7 +102,10 @@ class Gain(pl.LightningModule):
         mask = mask.float()
         hint = generate_hint(mask.detach().cpu().numpy(), self.training_cfg.hint_rate)
         hint = torch.tensor(hint, dtype=torch.float32).to(mask.device)
-        batch = {"x": x, "x_true": x_true, "mask": mask, "hint": hint}
+        # Add noise
+        noise = torch.randn_like(x) * 0.1
+        x_noisy = mask * x + (1 - mask) * (x + noise)
+        batch = {"x": x_noisy, "x_true": x_true, "mask": mask, "hint": hint}
 
         optimizers = self.optimizers()
 
@@ -142,15 +125,11 @@ class Gain(pl.LightningModule):
         # Generator
         rmse = reconstruction_loss(x=batch["x"], x_hat=x_hat, mask=batch["mask"])
         mask_hat = self.discriminator(x_imputed=x_imputed, hint=batch["hint"])
-        # Generator adversarial loss: fool discriminator on missing positions
-        # gen_adversarial = -torch.mean(
-        #     (1 - batch["mask"]) * torch.log(mask_hat + 1e-8)
-        # )
-        gen_adversarial = generator_mask_loss(mask=batch["mask"], mask_hat=mask_hat, hint=batch["hint"])
-        total_loss = rmse + self.training_cfg.alpha * gen_adversarial
+        adversarial_loss = generator_mask_loss(mask=batch["mask"], mask_hat=mask_hat, hint=batch["hint"])
+        total_loss = rmse + self.training_cfg.alpha * adversarial_loss
         logger.debug(
             f"\n RMSE: {rmse}"
-            f"\n Adversarial loss: {gen_adversarial}"
+            f"\n Adversarial loss: {adversarial_loss}"
             f"\n Total loss: {total_loss}"
         )
         generator_optimizer.zero_grad()
@@ -159,44 +138,8 @@ class Gain(pl.LightningModule):
 
         self.log("train/total_loss", total_loss, prog_bar=True)
         self.log("train/rmse", rmse)
-        self.log("train/discriminator_entropy", gen_adversarial)
+        self.log("train/adversarial_loss", adversarial_loss)
         self.log("train/discriminator_loss", discriminator_loss)
-    
-    def training_step_original(
-        self, 
-        batch,
-    ) -> torch.Tensor:
-        x_true, x, mask = batch
-        mask = mask.float()
-        hint = generate_hint(mask.detach().cpu().numpy(), self.training_cfg.hint_rate)
-        hint = torch.tensor(hint, dtype=torch.float32).to(mask.device)
-        batch = {"x": x, "x_true": x_true, "mask": mask, "hint": hint}
-        logger.debug(
-            f"\n Batch: {batch}"
-            f"\n Hint device: {hint.device}"
-        )
-
-        optimizers = self.optimizers()
-
-        generator_optimizer, discriminator_optimizer = optimizers[0], optimizers[1]
-
-        out = self.forward(batch)
-        losses = self._compute_losses(batch=batch, out=out)
-
-        discriminator_optimizer.zero_grad()
-        self.manual_backward(losses["discriminator_loss"])
-        discriminator_optimizer.step()
-
-        total_loss = losses["rmse"] - self.training_cfg.alpha * losses["discriminator_entropy"]
-
-        generator_optimizer.zero_grad()
-        self.manual_backward(total_loss)
-        generator_optimizer.step()
-
-        self.log("train/total_loss", total_loss, prog_bar=True)
-        self.log("train/rmse", losses["rmse"])
-        self.log("train/discriminator_entropy", losses["discriminator_entropy"])
-        self.log("train/discriminator_loss", losses["discriminator_loss"])
 
     def on_train_epoch_end(self) -> None:
         schedulers = self.lr_schedulers()
@@ -211,7 +154,9 @@ class Gain(pl.LightningModule):
         mask = mask.float()
         hint = generate_hint(mask.detach().cpu().numpy(), self.training_cfg.hint_rate)
         hint = torch.tensor(hint, dtype=torch.float32).to(mask.device)
-        batch = {"x": x, "x_true": x_true, "mask": mask, "hint": hint}
+        noise = torch.randn_like(x) * 0.1
+        x_noisy = mask * x + (1 - mask) * (x + noise)
+        batch = {"x": x_noisy, "x_true": x_true, "mask": mask, "hint": hint}
 
         x_hat = self.generator(x=batch["x"], mask=batch["mask"])
         x_imputed = mask * x + (1 - mask) * x_hat
@@ -219,37 +164,27 @@ class Gain(pl.LightningModule):
         mask_hat = self.discriminator(x_imputed=x_imputed, hint=batch["hint"])
         discriminator_loss = discriminator_mask_loss(mask=batch["mask"], mask_hat=mask_hat, hint=batch["hint"])
 
-        # --- Generator loss ---
         rmse = reconstruction_loss(x=batch["x"], x_hat=x_hat, mask=batch["mask"])
-        gen_adversarial = generator_mask_loss(mask=batch["mask"], mask_hat=mask_hat, hint=batch["hint"])
-        total_loss = rmse + self.training_cfg.alpha * gen_adversarial
+        adversarial_loss = generator_mask_loss(mask=batch["mask"], mask_hat=mask_hat, hint=batch["hint"])
+        total_loss = rmse + self.training_cfg.alpha * adversarial_loss
+
+        # Debug purposes
+        observed_mask = batch["mask"].bool()
+        missing_mask = ~observed_mask
+        logger.debug(
+            f"\n Observed entries mean"
+            f"\n    X predicted: {x_hat[observed_mask].mean().item()}"
+            f"\n    X true: {batch["x"][observed_mask].mean().item()}"
+            f"\n Missing entries mean"
+            f"\n    X predicted: {x_hat[missing_mask].mean().item()}"
+            f"\n    X true: {batch["x"][missing_mask].mean().item()}"
+
+        )
 
         self.log("val/total_loss", total_loss, prog_bar=True)
         self.log("val/rmse", rmse)
-        self.log("val/gen_adversarial", gen_adversarial)
+        self.log("val/adversarial_loss", adversarial_loss)
         self.log("val/discriminator_loss", discriminator_loss)
-
-    def validation_step_original(
-        self,
-        batch,
-    ) -> None:
-        x_true, x, mask = batch
-        mask = mask.float()
-        hint = generate_hint(mask.detach().cpu().numpy(), self.training_cfg.hint_rate)
-        hint = torch.tensor(hint, dtype=torch.float32).to(mask.device)
-        batch = {"x": x, "x_true": x_true, "mask": mask, "hint": hint}
-        logger.debug(
-            f"\n Batch: {batch}"
-            f"\n Hint device: {hint.device}"
-        )
-        out = self.forward(batch)
-        losses = self._compute_losses(batch=batch, out=out)
-
-        total_loss = losses["rmse"] - self.training_cfg.alpha * losses["discriminator_entropy"]
-        self.log("val/total_loss", total_loss, prog_bar=True)
-        self.log("val/rmse", losses["rmse"])
-        self.log("val/discriminator_entropy", losses["discriminator_entropy"])
-        self.log("val/discriminator_loss", losses["discriminator_loss"])
 
     def fit(
         self,
@@ -274,10 +209,11 @@ class Gain(pl.LightningModule):
             mask = mask.float()
             hint = generate_hint(mask.detach().cpu().numpy(), self.training_cfg.hint_rate)
             hint = torch.tensor(hint, dtype=torch.float32).to(mask.device)
+            self.to(mask.device)
             batch = {"x": x, "mask": mask, "hint": hint}
             out = self.forward(batch)
-            x_pred = out["x_hat"].cpu()
-            all_x_pred.append(x_pred.cpu())
+            x_pred = out["x_hat"]
+            all_x_pred.append(x_pred)
 
         return torch.cat(all_x_pred)
 
