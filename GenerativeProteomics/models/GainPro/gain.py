@@ -1,8 +1,12 @@
 import logging
 import torch
 import torch.nn as nn
-import pytorch_lightning as pl
 from torch.utils.data import DataLoader
+import pytorch_lightning as pl
+from pytorch_lightning.callbacks.early_stopping import (
+    EarlyStopping, 
+    EarlyStoppingReason
+)
 
 from utils.data.helper import generate_hint
 from utils.configs.model_config import GainConfig
@@ -192,8 +196,33 @@ class Gain(pl.LightningModule):
         val_loader: DataLoader | None=None,
     ) -> None:
         logger.info("Started training...")
-        trainer = pl.Trainer(max_epochs=self.training_cfg.num_epochs, accumulate_grad_batches=1)
+        # Early Stopping
+        early_stopping = EarlyStopping(
+            monitor="val/rmse", 
+            min_delta=self.training_cfg.min_delta, 
+            patience=self.training_cfg.patience, 
+            verbose=False,
+            mode="min",
+            check_finite=True,
+        )
+        trainer = pl.Trainer(
+            callbacks=early_stopping,
+            max_epochs=self.training_cfg.num_epochs, 
+            accumulate_grad_batches=1
+        )
         trainer.fit(self, train_dataloaders=train_loader, val_dataloaders=val_loader)
+
+        # Check why training stopped
+        if early_stopping.stopping_reason == EarlyStoppingReason.PATIENCE_EXHAUSTED:
+            logger.info("Training stopped due to patience exhaustion")
+        elif early_stopping.stopping_reason == EarlyStoppingReason.STOPPING_THRESHOLD:
+            logger.info("Training stopped due to reaching stopping threshold")
+        elif early_stopping.stopping_reason == EarlyStoppingReason.NOT_STOPPED:
+            logger.info("Training completed normally without early stopping")
+            
+        if early_stopping.stopping_reason_message:
+            logger.info(f"Details: {early_stopping.stopping_reason_message}")
+
 
     @torch.no_grad()
     def predict(

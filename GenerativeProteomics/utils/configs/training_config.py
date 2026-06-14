@@ -10,6 +10,8 @@ class SchedulerConfig(BaseModel):
 
 class GainTrainingConfig(BaseModel):
     num_epochs: int
+    patience: int
+    min_delta: float
     batch_size: int
     generator_optimizer: OptimizerConfig = Field(default_factory=OptimizerConfig)
     generator_scheduler: SchedulerConfig | None = None
