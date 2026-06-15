@@ -81,13 +81,21 @@ name: string            # Name for readability, not used by the pipeline
 
 dataset_path: string    # Path to the CSV/TSV/anndata file, relative to `GenerativeProteomics`
 
+normalizer: string      # Options: ["auto", "none", "minmax", "standard"]. 
+                        # "auto" lets each model use its default normalizer.
+                        # Override with: "minmax", "standard".
+
 log_transform: bool     # ⚠️ Apply log-transform before imputation.
                         # You are responsible for ensuring this matches
                         # your data's scale — the model is unaware of it.
 
-normalizer: string      # Options: ["auto", "none", "minmax", "standard"]. 
-                        # "auto" lets each model use its default normalizer.
-                        # Override with: "minmax", "standard".
+missing_mechanism: string   # Missing mechanism to artificially induce additional missingness.
+                            # Options: ["MCAR", "MNAR"].
+                            # MCAR: entries are masked uniformly at random.
+                            # MNAR: lower-valued entries are masked with higher probability (sigmoid-weighted sampling).
+steepness: Optional[float]  # Controls how strongly low values are preferred for masking under MNAR.
+                  # Higher values create a sharper boundary between masked and unmasked entries.
+                  # Ignored when missing_mechanism: MCAR. Typical range: [0.5, 5.0]. Default
 ```
 
 A full example is available [PXD030304_no_control_multi_peptide_50pct_tissue.yaml](configs/datasets/PXD030304/PXD030304_no_control_multi_peptide_50pct_tissue/PXD030304_no_control_multi_peptide_50pct_tissue.yaml).
@@ -128,6 +136,8 @@ todo
 todo
 
 ```yaml
+miss_rate: float  # Target missing rate over the full matrix after induction. Range: [0.0, 1.0].
+                  # ⚠️ If the dataset already exceeds this rate, no masking is applied.
 ```
 
 ## Imputation Models
