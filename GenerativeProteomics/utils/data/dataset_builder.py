@@ -9,6 +9,7 @@ from pathlib import Path
 from utils.data.dataset import Data
 from utils.configs.dataset_config import DatasetConfig
 from utils.configs.model_config import FillStrategy
+from utils.data.helper import MissingMechanism
 from utils.data.normalizer_registry import build_normalizer
 from utils.data.helper import (
     load_csv,
@@ -54,6 +55,9 @@ class DatasetBuilder:
         self.normalize = self.normalizer != "none"
         if self.normalize:
             self.normalizer = build_normalizer(self.normalizer)
+
+        self.missing_mechanism = cfg.missing_mechanism
+        self.steepness = cfg.steepness # Only needed with the MNAR missingness
 
         self.reference = None
         self.missing = None
@@ -125,6 +129,7 @@ class DatasetBuilder:
             f"\n Preprocessing:"
             f"\n Log-transform: {self.log_transform}"
             f"\n Normalize: {self.normalize}, Normalizer: {self.normalizer.name if self.normalize else "None"}"
+            f"\n Missing mechanism: {self.missing_mechanism.name}"
         )
         if self.log_transform:
             values = df.values.astype(float)
@@ -157,14 +162,20 @@ class DatasetBuilder:
             logger.info(f"\n Overall mean expression: {mean}")
 
     def build(
-        self, 
+        self,
         fill_strategy: FillStrategy="none",
         seed: int=42,
     ) -> Data:
         self.observed_mask = compute_observed_mask(self.df)
 
         self.reference = self._apply_transformations(df=self.df, observed_mask=self.observed_mask)
-        self.missing = induce_missing(df=self.reference, seed=seed, miss_rate=self.miss_rate, restrict_to_observed=False)
+        self.missing = induce_missing(
+            df=self.reference, 
+            seed=seed, 
+            miss_rate=self.miss_rate, 
+            missing_mechanism=self.missing_mechanism,
+            steepness=self.steepness,
+        )
 
         self.original_missingness = compute_missing_rate(self.df)
         self.current_missingness = compute_missing_rate(self.missing)
@@ -173,6 +184,7 @@ class DatasetBuilder:
             f"\n Dataset shape: {self.reference.shape}"
             f"\n Original missing rate: {self.original_missingness:.2%}"
             f"\n Current missing rate: {self.current_missingness:.2%}"
+            f"\n Target missing rate: {self.miss_rate}"
             f"\n Fill strategy: {fill_strategy}"
         )
 

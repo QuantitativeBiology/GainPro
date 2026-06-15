@@ -1,9 +1,18 @@
 import torch
+import logging
 from typing import List
+from enum import Enum
 import numpy as np
 import pandas as pd
 import anndata as ad
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
+ 
+class MissingMechanism(Enum):
+    """Missing data mechanisms"""
+    MCAR = "MCAR" # Missing Completely At Random
+    MNAR = "MNAR" # Missing Not At Random
 
 def load_csv(
     dataset_path: Path,
@@ -152,37 +161,6 @@ def compute_missing_rate(
     missing_rate = total_missing / df.size
     return missing_rate
 
-def induce_missing(
-    df: pd.DataFrame, 
-    seed: int,
-    miss_rate: float=0.0,
-    restrict_to_observed: bool=False,
-) -> pd.DataFrame:
-    rng = np.random.default_rng(seed)
-    df_missing = df.copy()
-
-    n_rows, n_cols = df_missing.shape
-    total_entries = n_rows * n_cols
-    n_to_mask = int(miss_rate * total_entries)
-
-    if restrict_to_observed:
-        mask = df_missing.notna().values
-    else:
-        mask = np.ones((n_rows, n_cols), dtype=bool)
-
-    eligible_positions = np.argwhere(mask)
-    if n_to_mask > len(eligible_positions):
-        raise ValueError("Not enough eligible entries to mask.")
-    
-    chosen = eligible_positions[
-        rng.choice(len(eligible_positions), size=n_to_mask, replace=False)
-    ]
-
-    rows, cols = chosen[:, 0], chosen[:, 1]
-    df_missing.values[rows, cols] = np.nan
-
-    return df_missing
-
 def compute_observed_mask(
     reference_df: pd.DataFrame,
 ) -> pd.DataFrame:
@@ -225,4 +203,121 @@ def convert_tensors_dtype(
 ) -> List[torch.Tensor]:
     if isinstance(tensor, list):
         return [t.to(dtype) for t in tensor]
-    return tensor.to(dtype) 
+    return tensor.to(dtype)
+
+def induce_missing(
+    df: pd.DataFrame,
+    seed: int,
+    miss_rate: float,
+    missing_mechanism: MissingMechanism=MissingMechanism.MCAR,
+    steepness: float=1.0,
+) -> pd.DataFrame:
+    r"""Induce missing values in a DataFrame under the specified mechanism.
+
+    Args:
+        - df (pd.DataFrame) : Must contain at least one observed (non-NaN) value.
+        - seed (int) : Seed for reproducibility.
+        - miss_rate (float) : Target missing rate over the full matrix. :math:`\text{miss\_rate} \in [0, 1]`.
+        - missing_mechanism (`MissingMechanism`): `MissingMechanism.MCAR` (default) masks entries uniformly at random; 
+            `MissingMechanism.MNAR` masks low-valued entries with higher probability via a sigmoid function.
+        - steepness (float): Sigmoid steepness used only when `mechanism=MissingMechanism.MNAR`. 
+            Higher values create a sharper boundary between masked and unmasked entries. 
+            Ignored for `mechanism=MissingMechanism.MCAR`. Default = 5.0.
+
+    Returns:
+        A copy of `df` with additional NaN values introduced.
+    """
+    if not 0.0 <= miss_rate <= 1.0:
+        raise ValueError(f"`miss_rate` must be in [0, 1], got {miss_rate}.")
+    if not isinstance(missing_mechanism, MissingMechanism):
+        raise ValueError(
+            f"`mechanism` must be a MissingMechanism instance, got {mechanism!r}. "
+            f"Valid options: {[m.value for m in MissingMechanism]}."
+        )
+
+    if missing_mechanism is MissingMechanism.MCAR:
+        return _induce_mcar(df, seed=seed, miss_rate=miss_rate)
+    return _induce_mnar(df, seed=seed, miss_rate=miss_rate, steepness=steepness)
+
+def _induce_mcar(
+    df: pd.DataFrame,
+    seed: int,
+    miss_rate: float,
+) -> pd.DataFrame:
+    """Uniformly mask observed entries to reach `miss_rate` across the matrix."""
+    rng = np.random.default_rng(seed)
+    df = df.copy()
+
+    observed_mask = df.notna().values
+    n_entries = df.size
+    n_observed = int(observed_mask.sum())
+    n_target_missing = round(miss_rate * n_entries)
+    n_to_mask = n_target_missing - (n_entries - n_observed)
+
+    if n_to_mask <= 0:
+        return df  # Already at or above the target miss_rate
+
+    eligible_positions = np.argwhere(observed_mask)
+    if n_to_mask > len(eligible_positions):
+        raise ValueError(
+            f"Cannot mask {n_to_mask} additional entries: only "
+            f"{len(eligible_positions)} observed values are available."
+        )
+
+    chosen = rng.choice(len(eligible_positions), size=n_to_mask, replace=False)
+    rows, cols = eligible_positions[chosen, 0], eligible_positions[chosen, 1]
+    df.values[rows, cols] = np.nan
+    return df
+
+def _induce_mnar(
+    df: pd.DataFrame,
+    seed: int,
+    miss_rate: float,
+    steepness: float,
+) -> pd.DataFrame:
+    """Mask entries via a sigmoid so that lower values are more likely missing.
+
+    The sigmoid probabilities are used as weights to decide which entries will be
+    masked. Lower-valued entries carry higher weight.
+
+    The sigmoid inflection point is found with binary search so that the
+    expected global miss rate matches `miss_rate`.
+
+    Masking weight over observed entries::
+        w(x) = sigmoid(-steepness * (x - inflection))
+             = 1 / (1 + exp(steepness * (x - inflection)))
+    """
+    rng = np.random.default_rng(seed)
+    df = df.copy()
+    values = df.values.astype(float)
+
+    n_entries = values.size
+    observed_mask = ~np.isnan(values)
+    observed_values = values[observed_mask] # 1-D array of observed entries
+    n_already_missing = n_entries - len(observed_values)
+
+    n_target_missing = round(miss_rate * n_entries)
+    n_to_mask = n_target_missing - n_already_missing
+
+    if n_to_mask <= 0:
+        return df  # Already at or above target miss_rate
+
+    if n_to_mask > len(observed_values):
+        raise ValueError(
+            f"Cannot mask {n_to_mask} additional entries: only "
+            f"{len(observed_values)} observed values are available."
+        )
+    
+    # Sigmoid weights: lower values get higher weight (more likely masked).
+    # Anchor the inflection at the median so `steepness` is interpretable
+    # independent of the data's absolute scale.
+    inflection = float(np.median(observed_values))
+    weights = 1.0 / (1.0 + np.exp(steepness * (observed_values - inflection)))
+    weights /= weights.sum() # normalize to a probability distribution
+
+    chosen = rng.choice(len(observed_values), size=n_to_mask, replace=False, p=weights)
+
+    observed_positions = np.argwhere(observed_mask)
+    rows, cols = observed_positions[chosen, 0], observed_positions[chosen, 1]
+    df.values[rows, cols] = np.nan
+    return df

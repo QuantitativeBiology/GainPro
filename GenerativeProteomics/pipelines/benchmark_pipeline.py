@@ -55,7 +55,7 @@ def run_holdout(
     strategy_cfg = benchmark_cfg.validation
     logger.debug(f"\n Model name: {model_cfg.name.lower()}")
 
-    for miss_level in strategy_cfg.missing_levels:
+    for miss_level in strategy_cfg.target_missing:
         logger.info(f"\n Missingness: {miss_level}")
         experiment_dir = benchmark_dir / model_cfg.name.lower() / f"miss_{int(miss_level * 100)}"
         experiment_dir.mkdir(parents=True, exist_ok=True)
