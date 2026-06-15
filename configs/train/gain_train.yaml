@@ -1,5 +1,5 @@
-num_epochs: 20
-patience: 10
+num_epochs: 100
+patience: 20
 min_delta: 1e-6
 batch_size: 1000
 
