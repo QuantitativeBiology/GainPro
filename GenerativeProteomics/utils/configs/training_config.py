@@ -22,6 +22,8 @@ class GainTrainingConfig(BaseModel):
 
 class AutoEncoderTrainingConfig(BaseModel):
     num_epochs: int
+    patience: int
+    min_delta: float
     batch_size: int
     lr: float
     scheduler: SchedulerConfig = Field(default_factory=SchedulerConfig)
