@@ -13,6 +13,7 @@ from utils.configs.model_entry_config import ModelEntryConfig
 from utils.writers.dataset_writer import DatasetWriter
 from utils.writers.experiment_writer import ExperimentWriter
 from utils.helper import load_benchmark, load_yaml, make_run_dir
+from utils.writers.config_writer import ConfigWriter
 
 logger = logging.getLogger(__name__)
 
@@ -23,8 +24,15 @@ def execute_run(
     dataset_cfg: DatasetConfig,
     miss_rate: float,
     evaluator_kwargs: dict,
+    benchmark_cfg_path: Path,
+    dataset_cfg_path: Path,
 ) -> None:
     experiment_writer = ExperimentWriter(run_dir)
+
+    cfg_snapshot_dir = run_dir / "configs"
+    cfg_snapshot_dir.mkdir(parents=True, exist_ok=True)
+    ConfigWriter.snapshot_config_tree(config_path=benchmark_cfg_path, out_dir=cfg_snapshot_dir)
+    ConfigWriter.snapshot_config_tree(config_path=dataset_cfg_path, out_dir=cfg_snapshot_dir)
 
     manager = ImputationManager(model_cfg=model_cfg)
 
@@ -51,6 +59,8 @@ def run_holdout(
     model_cfg: ModelEntryConfig,
     dataset_cfg: DatasetConfig,
     benchmark_dir: Path,
+    benchmark_cfg_path: Path,
+    dataset_cfg_path: Path,
 ) -> None:
     strategy_cfg = benchmark_cfg.validation
     logger.debug(f"\n Model name: {model_cfg.name.lower()}")
@@ -73,6 +83,8 @@ def run_holdout(
                 evaluator_kwargs={
                     "strategy": "holdout", 
                 },
+                benchmark_cfg_path=benchmark_cfg_path,
+                dataset_cfg_path=dataset_cfg_path,
             )
 
 def run_groupkfold(
@@ -80,6 +92,8 @@ def run_groupkfold(
     model_cfg: ModelEntryConfig,
     dataset_cfg: DatasetConfig,
     benchmark_dir: Path,
+    benchmark_cfg_path: Path,
+    dataset_cfg_path: Path,
 ) -> None:
     strategy_cfg = benchmark_cfg.validation
 
@@ -102,6 +116,8 @@ def run_groupkfold(
                     "num_folds": strategy_cfg.num_folds,
                     "holdout_tissues": strategy_cfg.holdout_tissues,
                 },
+                benchmark_cfg_path=benchmark_cfg_path,
+                dataset_cfg_path=dataset_cfg_path,
             )
 
 STRATEGY_RUNNERS = {
@@ -139,4 +155,6 @@ def run_benchmark(
             benchmark_dir=benchmark_dir,
             model_cfg=model_cfg,
             dataset_cfg=dataset_cfg,
+            benchmark_cfg_path=benchmark_cfg_path,
+            dataset_cfg_path=dataset_cfg_path,
         )

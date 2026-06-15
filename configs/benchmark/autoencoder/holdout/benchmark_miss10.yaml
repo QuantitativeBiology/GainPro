@@ -3,7 +3,7 @@ initial_seed: 42
 
 validation:
   name: "holdout"
-  target_missing: []
+  target_missing: [0.20]
 
 models:
   - name: autoencoder
