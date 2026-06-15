@@ -1,9 +1,9 @@
-n_runs: 1 # number of runs
+n_runs: 1
 initial_seed: 42
 
 validation: 
   name: "holdout"
-  target_missing: [0.10]
+  target_missing: [0.20]
 
 models:
   - name: global_mean
