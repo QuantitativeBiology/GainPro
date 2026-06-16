@@ -6,6 +6,6 @@ validation:
   target_missing: [0.20]
 
 models:
-  - name: protogain
-    model_cfg_path: "../configs/model/protogain.yaml"
+  - name: gain
+    model_cfg_path: "../configs/model/gain.yaml"
     training_cfg_path: "../configs/train/gain_train.yaml"

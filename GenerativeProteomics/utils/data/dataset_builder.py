@@ -27,7 +27,7 @@ logger = logging.getLogger(__name__)
 MODEL_PREPROCESSING_DEFAULTS = {
     "missforest": {"log_transform": False, "normalizer": "none"},
     "global_mean": {"log_transform": False, "normalizer": "none"},
-    "protogain": {"log_transform": True, "normalizer": "minmax"},
+    "gain": {"log_transform": True, "normalizer": "minmax"},
     "autoencoder": {"log_transform": True, "normalizer": "standard"},
 }
 

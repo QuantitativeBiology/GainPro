@@ -12,7 +12,7 @@ from utils.configs.model_config import (
 from utils.configs.training_config import GainTrainingConfig, AutoEncoderTrainingConfig
 
 MODEL_REGISTRY = {
-    "protogain": {
+    "gain": {
         "model_config": GainConfig,
         "training_config": GainTrainingConfig,
     },
@@ -46,7 +46,7 @@ def load_benchmark(cfg_path: Path) -> BenchmarkConfig:
     for m in cfg.models:
         registry_entry = MODEL_REGISTRY[m.name.lower()]
         registry_entry["model_config"].model_validate(load_yaml(m.model_cfg_path))
-        if m.name == "protogain":
+        if m.name == "gain":
             GainTrainingConfig.model_validate(load_yaml(m.training_cfg_path))
         if m.name == "autoencoder":
             AutoEncoderTrainingConfig.model_validate(load_yaml(m.training_cfg_path))

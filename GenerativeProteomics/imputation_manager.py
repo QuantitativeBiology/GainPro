@@ -12,7 +12,7 @@ class ImputationManager:
     from config"""
 
     REGISTRY: dict[str, type] = {
-        "protogain": GainImputer,
+        "gain": GainImputer,
         "autoencoder": AutoEncoderImputer,
         "global_mean": GlobalMeanImputer,
         "tissue_mean": TissueMeanImputer,

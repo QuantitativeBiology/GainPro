@@ -8,6 +8,6 @@ validation_strategy:
     holdout_tissues: ["Haematopoietic and Lymphoid", "Lung"]
 
 models:
-  - name: protogain
-    model_config: "../configs/model/protogain.yaml"
+  - name: gain
+    model_config: "../configs/model/gain.yaml"
     train_config: "../configs/train/train.yaml"

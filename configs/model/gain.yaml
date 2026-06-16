@@ -1,5 +1,5 @@
-name: protogain
+name: gain
 num_hidden_layers_generator: 3
 num_hidden_layers_discriminator: 2
 hidden_dim: 1024
-fill_strategy: mean
+fill_strategy: zero
