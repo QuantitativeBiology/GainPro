@@ -1,7 +1,7 @@
 import pandas as pd
 from pathlib import Path
 
-from models.GainPro.metrics import Metrics
+from models.Gain.metrics import Metrics
 
 class MetricsWriter:
     def __init__(
