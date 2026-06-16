@@ -127,7 +127,7 @@ class Gain(pl.LightningModule):
         discriminator_optimizer.step()
 
         # Generator
-        rmse = reconstruction_loss(x=batch["x"], x_hat=x_hat, mask=batch["mask"])
+        rmse = reconstruction_loss(x=batch["x_true"], x_hat=x_hat, mask=batch["mask"])
         mask_hat = self.discriminator(x_imputed=x_imputed, hint=batch["hint"])
         adversarial_loss = generator_mask_loss(mask=batch["mask"], mask_hat=mask_hat, hint=batch["hint"])
         total_loss = rmse + self.training_cfg.alpha * adversarial_loss
@@ -173,7 +173,7 @@ class Gain(pl.LightningModule):
         batch = {"x": x_noisy, "x_true": x_true, "mask": eval_mask, "hint": hint}
 
         x_hat = self.generator(x=batch["x"], mask=batch["mask"])
-        imputation_rmse = reconstruction_loss(x=x, x_hat=x_hat, mask=artificial_mask)
+        imputation_rmse = reconstruction_loss(x=x_true, x_hat=x_hat, mask=artificial_mask)
         x_imputed = mask * x + (1 - mask) * x_hat
 
         mask_hat = self.discriminator(x_imputed=x_imputed, hint=batch["hint"])
@@ -262,4 +262,19 @@ class Gain(pl.LightningModule):
         self,
         loader: DataLoader,
     ) -> torch.Tensor:
-        pass
+        self.eval()
+
+        all_x_imputed: list[torch.Tensor] = []
+        
+        for batch in loader:
+            x, mask = batch
+            mask = mask.float()
+            hint = generate_hint(mask.detach().cpu().numpy(), self.training_cfg.hint_rate)
+            hint = torch.tensor(hint, dtype=torch.float32).to(mask.device)
+            self.to(mask.device)
+            batch = {"x": x, "mask": mask, "hint": hint}
+            out = self.forward(batch)
+            x_imputed = mask * x + (1 - mask) * out["x_hat"]
+            all_x_imputed.append(x_imputed)
+
+        return torch.cat(all_x_imputed)
