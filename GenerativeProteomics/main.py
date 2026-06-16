@@ -5,7 +5,7 @@ from commands import benchmark
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        epilog="Example: python main.py --log-level INFO benchmark --config \"../configs/benchmark/protogain/holdout/benchmark_miss10.yaml\" --dataset \"../configs/datasets/PXD030304/PXD030304_no_control_multi_peptide_50pct_tissue/PXD030304_no_control_multi_peptide_50pct_tissue_transpose.yaml\"",
+        epilog="Example: python main.py --log-level INFO benchmark --config \"../configs/benchmark/gain/holdout/benchmark_miss10.yaml\" --dataset \"../configs/datasets/PXD030304/PXD030304_no_control_multi_peptide_50pct_tissue/PXD030304_no_control_multi_peptide_50pct_tissue_transpose.yaml\"",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument(
