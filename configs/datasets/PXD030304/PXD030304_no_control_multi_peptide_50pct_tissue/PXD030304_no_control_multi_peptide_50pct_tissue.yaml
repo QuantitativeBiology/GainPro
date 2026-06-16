@@ -2,4 +2,5 @@ name: PXD030304
 dataset_path: "../data/processed/PXD030304/PXD030304_no_control_multi_peptide_50pct_tissue/PXD030304_no_control_multi_peptide_50pct_tissue.csv"
 normalizer: "auto"
 log_transform: False
-missing_mechanism: MNAR
+missing_mechanism: MCAR
+steepness: 1.0
