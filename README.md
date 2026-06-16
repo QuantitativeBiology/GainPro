@@ -45,7 +45,7 @@ source .gainpro/bin/activate
 pip install -r requirements.txt
 ```
 
-**Requirements:** Python $\geq$ 3.10
+**Requirements:** Python $\geq$ 3.13
 
 ## Quickstart
 
@@ -122,6 +122,7 @@ Passing an invalid value raises a `ValidationError` before the pipeline starts.
 todo
 
 ```yaml
+fill_strategy: str
 ```
 
 ### Train
