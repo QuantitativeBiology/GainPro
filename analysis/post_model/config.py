@@ -7,8 +7,8 @@ from matplotlib.lines import Line2D
 MODELS = [
     "Mean", 
     "MissForest", 
-    "ProtoGain", 
-    "AutoEncoder", 
+    "GAIN", 
+    "Autoencoder", 
     "Tissue Mean"
 ]
 

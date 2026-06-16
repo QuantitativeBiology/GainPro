@@ -465,7 +465,7 @@ def plot_violin_by_tissue(
     n_cols=3
 ):
     """
-    Observed vs. predicted distribution violin plots per tissue for a given ProtoGain missing level.
+    Observed vs. predicted distribution violin plots per tissue for a given Gain missing level.
     """
     all_plots = _collect_tissue_plot_data(model_dir)
 
