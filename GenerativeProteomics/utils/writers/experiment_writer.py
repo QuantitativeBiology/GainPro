@@ -2,7 +2,6 @@ from pathlib import Path
 
 from utils.writers.split_writer import SplitWriter
 from utils.writers.results_writer import ResultWriter
-from utils.writers.metrics_writer import MetricsWriter
 from utils.writers.metadata_writer import MetadataWriter
 
 class ExperimentWriter:
