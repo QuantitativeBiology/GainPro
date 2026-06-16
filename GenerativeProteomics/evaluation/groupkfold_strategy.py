@@ -112,13 +112,13 @@ class GroupKFoldStrategy(EvaluationStrategy):
                     x_train=torch.tensor(x_train, device=data.device),
                     observed_mask=torch.tensor(mask_train, device=data.device),
                 )
-                x_pred_test = imputer.impute(
+                x_pred_test = imputer.predict(
                     x_missing=torch.tensor(x_missing_test, device=data.device), 
                     mask=torch.tensor(mask_eval, device=data.device)
                 )
             else:
                 imputer.train(x_train)
-                x_pred_test = imputer.impute(x_missing_test)
+                x_pred_test = imputer.predict(x_missing_test)
 
             experiment_writer.metadata_writer.set_end_time(datetime.now())
 

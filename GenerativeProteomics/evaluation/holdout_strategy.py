@@ -31,8 +31,13 @@ class HoldoutStrategy(EvaluationStrategy):
         experiment_writer.result_writer.set_prediction_dir(prediction_dir=experiment_writer.preds_dir)
         
         observed_mask = data.observed_mask.detach().cpu().numpy()
+
+        # artificial_mask: artificially hidden positions used to assess imputation quality
+        # Shape: (n_samples, n_features), dtype: bool
+        # These entries had known ground-truth values (from observed_mask) that the benchmark
+        # deliberately removed to simulate missingness.
+        # RMSE is computed here only
         artificial_mask = data.artificial_missing_mask.detach().cpu().numpy()
-        mask_observed_tensor = torch.tensor(observed_mask, device=data.device)
 
         # mask_train: observed positions excluding artificially hidden entries
         # Shape: (n_samples, n_features), dtype: bool
@@ -40,15 +45,7 @@ class HoldoutStrategy(EvaluationStrategy):
         # - (b) artificial_mask != True: exclude positions the benchmark intentionally hid for evaluation
         # Result: only positions that are (a) real data and (b) not held out
         mask_train = (observed_mask == True) & (artificial_mask != True)
-        mask_train_tensor = torch.tensor(mask_train, device=data.device)
-
-        # mask_eval: artificially hidden positions used to assess imputation quality
-        # Shape: (n_samples, n_features), dtype: bool
-        # These entries had known ground-truth values (from observed_mask) that the benchmark
-        # deliberately removed to simulate missingness.
-        # RMSE is computed here only
-        mask_eval = (artificial_mask == True)
-        mask_eval_tensor = torch.tensor(mask_eval, device=data.device)
+        mask_train = torch.tensor(mask_train, device=data.device)
         
         x_true = np.nan_to_num(data.reference.detach().cpu().numpy(), nan=0)
         x_true_tensor = torch.tensor(x_true, device=data.device, dtype=torch.float32)
@@ -68,20 +65,28 @@ class HoldoutStrategy(EvaluationStrategy):
             
         experiment_writer.metadata_writer.set_start_time(datetime.now())
 
+        logger.debug(
+            f"\n Train:"
+            f"\n X true: {x_true_tensor}"
+            f"\n X missing: {x_missing}"
+            f"\n Mask: {mask_train}"
+            f"\n Artificial mask: {data.artificial_missing_mask}"
+        )
+
         imputer.train(
             x_train=x_missing[train_idx],
             x_true=x_true_tensor[train_idx],
-            mask_train=mask_train_tensor[train_idx],
+            mask_train=mask_train[train_idx],
+            artificial_mask_train=data.artificial_missing_mask[train_idx],
             x_val=x_missing[val_idx],
             x_true_val=x_true_tensor[val_idx],
-            mask_val=mask_train_tensor[val_idx],
+            mask_val=mask_train[val_idx],
+            artificial_mask_val= data.artificial_missing_mask[val_idx],
             experiment_writer=experiment_writer,
         )
-        # mask_impute = (mask_eval == True) | (observed_mask == False) # impute artificial hidden entries and original missing entries
-        mask_impute = (mask_eval == True) | (observed_mask == False) # impute artificial hidden entries and original missing entries
-        x_pred = imputer.predict(
-            x_missing=x_missing.to(device=data.device),
-            mask=torch.tensor(mask_impute, device=data.device),
+        x_pred = imputer.impute(
+            x_missing=x_missing,
+            mask=mask_train,
         )
         experiment_writer.metadata_writer.set_end_time(datetime.now())
         x_pred = x_pred.detach().cpu().numpy()
@@ -90,14 +95,14 @@ class HoldoutStrategy(EvaluationStrategy):
         #     discriminator_precision_recall = imputer.evaluate_discriminator(
         #         x_missing=x_missing, 
         #         mask_observed=mask_observed_tensor,
-        #         mask_eval=mask_eval_tensor,
+        #         artificial_mask=mask_eval_tensor,
         #         positive_label=positive_label, 
         #     )
         #     experiment_writer.result_writer.save_precision_recall_discriminator(
         #         precision_recall=discriminator_precision_recall,
         #     )
 
-        test_rmse = rmse(x_true, x_pred, mask_eval)
+        test_rmse = rmse(x_true, x_pred, artificial_mask)
         logging.info(f"RMSE: {test_rmse}")
         # Sanity check on training data
         logger.debug(
@@ -115,6 +120,7 @@ class HoldoutStrategy(EvaluationStrategy):
                 f"\n    Ranges Mean: {data.normalizer.ranges.mean()}"
             )
 
+        missing_mask = observed_mask == 0
         logger.debug(
             f"\n Observed entries"
             f"\n In normalized space"
@@ -123,6 +129,12 @@ class HoldoutStrategy(EvaluationStrategy):
             f"\n After inverse transformation"
             f"\n    X predicted mean: {data.inverse_transform(x_pred)[observed_mask == 1].mean()}"
             f"\n    X true mean: {data.inverse_transform(x_true)[observed_mask == 1].mean()}"
+            f"\n Missing entries"
+            f"\n    X predicted mean: {x_pred[missing_mask].mean()}"
+            f"\n    X true mean: {x_true[missing_mask].mean()}" 
+            f"\n Artificial entries (held-out for eval)"
+            f"\n    X predicted mean: {x_pred[artificial_mask].mean()}"
+            f"\n    X true mean: {x_true[artificial_mask].mean()}"
         )
 
         x_pred_out = data.inverse_transform(x_pred)

@@ -10,7 +10,7 @@ from utils.data.normalizer_registry import get_output_activation
 
 from wrappers.imputer import Imputer
 
-from models.GainPro.gain import Gain
+from models.Gain.gain import Gain
 
 from utils.configs.model_config import GainConfig, FillStrategy
 from utils.configs.model_entry_config import ModelEntryConfig
@@ -60,28 +60,40 @@ class GainImputer(Imputer):
         x_train: torch.Tensor,
         x_true: torch.Tensor,
         mask_train: torch.Tensor,
+        artificial_mask_train: torch.Tensor,
         experiment_writer: ExperimentWriter,
         x_val: Optional[torch.Tensor],
         x_true_val: Optional[torch.Tensor],
         mask_val: Optional[torch.Tensor],
+        artificial_mask_val: torch.Tensor,
     ) -> None:
         _ = experiment_writer
-        dataset = TensorDataset(x_true, x_train, mask_train)
+        dataset = TensorDataset(x_true, x_train, mask_train, artificial_mask_train)
         train_loader = DataLoader(dataset, batch_size=self.training_cfg.batch_size, shuffle=True)
 
         val_loader = None
         if x_val is not None:
-            val_dataset = TensorDataset(x_true_val, x_val, mask_val)
+            val_dataset = TensorDataset(x_true_val, x_val, mask_val, artificial_mask_val)
             val_loader = DataLoader(val_dataset, batch_size=self.training_cfg.batch_size, shuffle=False)
 
         self.gain.fit(train_loader=train_loader, val_loader=val_loader)
     
-    def predict(
+    def impute(
         self,
         x_missing: torch.Tensor,
         mask: Optional[torch.Tensor],
     ) -> torch.Tensor:
         test_dataset = TensorDataset(x_missing, mask)
+        test_loader = DataLoader(test_dataset, batch_size=self.training_cfg.batch_size, shuffle=False)
+        x_pred = self.gain.impute(test_loader)
+        return x_pred
+    
+    def predict(
+        self,
+        x_missing: torch.Tensor,
+        observed_mask: Optional[torch.Tensor],
+    ) -> torch.Tensor:
+        test_dataset = TensorDataset(x_missing, observed_mask)
         test_loader = DataLoader(test_dataset, batch_size=self.training_cfg.batch_size, shuffle=False)
         x_pred = self.gain.predict(test_loader)
         return x_pred

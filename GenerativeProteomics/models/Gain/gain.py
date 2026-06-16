@@ -11,9 +11,9 @@ from pytorch_lightning.callbacks.early_stopping import (
 from utils.data.helper import generate_hint
 from utils.configs.model_config import GainConfig
 from utils.configs.training_config import GainTrainingConfig
-from models.GainPro.generator import Generator
-from models.GainPro.discriminator import Discriminator
-from models.GainPro.losses import (
+from models.Gain.generator import Generator
+from models.Gain.discriminator import Discriminator
+from models.Gain.losses import (
     reconstruction_loss,
     discriminator_mask_loss,
     generator_mask_loss
@@ -24,30 +24,29 @@ logger = logging.getLogger(__name__)
 
 class Gain(pl.LightningModule):
     """
-    GAIN: Generative Adversarial Imputation Network.
-
     Dataloader contract (TensorDataset order):
-        Training:   (x_true, x_missing, observed_mask, artificial_mask)
-        Validation: (x_true, x_missing, observed_mask, artificial_mask)
-        Inference:  (x_missing, observed_mask)
+        - Training: (`x_true`, `x_missing`, `observed_mask`, `artificial_mask`)
+        - Validation: (`x_true`, `x_missing`, `observed_mask`, `artificial_mask`)
+        - Inference: (`x_missing`, `observed_mask`)
 
     Where:
-        x_true          – ground-truth values; NaN-filled originals set to 0
-        x_missing       – fill-strategy input (zeros or mean); missing entries filled
-        observed_mask   – 1 where entry was originally observed, 0 where originally missing
-        artificial_mask – 1 where an observed entry was deliberately hidden for supervision
-                          (subset of observed_mask); 0 everywhere else
+        - `x_true` (torch.Tensor): ground-truth values
+        - `x_missing` (torch.Tensor): train tensor with missing values artificial introduced.
+            Missing values are filled according to the `fill_strategy` (mean, zero).
+        - `observed_mask` (torch.Tensor): Boolean tensor where `True` corresponds to an entry
+            that was originally observed, `False` otherwise.
+        - `artificial_mask` (torch.Tensor): Boolean tensor where `True` corresponds to an 
+            observed entry that was deliberately hidden for supervision; 0 everywhere else.
 
     The reconstruction loss is computed ONLY on artificial_mask positions,
     which are the only positions where we have clean ground-truth supervision.
     """
-
     def __init__(
         self,
         input_dim: int,
         hypers: GainConfig,
         training_cfg: GainTrainingConfig,
-        generator_output_activation: nn.Module = None,
+        generator_output_activation: nn.Module=None,
     ) -> None:
         super().__init__()
 
@@ -75,20 +74,13 @@ class Gain(pl.LightningModule):
 
         self.training_cfg = training_cfg
 
-    # ------------------------------------------------------------------
-    # Forward
-    # ------------------------------------------------------------------
-
     def forward(self, batch: dict) -> dict:
-        x_hat = self.generator(x=batch["x"], mask=batch["observed_mask"])
-        x_imputed = batch["observed_mask"] * batch["x"] + (1 - batch["observed_mask"]) * x_hat
+        observed_mask = batch["observed_mask"]
+        x_hat = self.generator(x=batch["x"], mask=observed_mask)
+        x_imputed = observed_mask * batch["x"] + (1 - observed_mask) * x_hat
         mask_hat = self.discriminator(x_imputed=x_imputed, hint=batch["hint"])
         return {"x_hat": x_hat, "x_imputed": x_imputed, "mask_hat": mask_hat}
-
-    # ------------------------------------------------------------------
-    # Optimizers
-    # ------------------------------------------------------------------
-
+    
     def configure_optimizers(self):
         generator_optimizer = torch.optim.Adam(
             params=self.generator.parameters(),
@@ -117,25 +109,20 @@ class Gain(pl.LightningModule):
             ))
 
         return optimizers, schedulers
-
-    # ------------------------------------------------------------------
-    # Training
-    # ------------------------------------------------------------------
-
-    def training_step(self, batch) -> None:
-        # Unpack — see dataloader contract above
+    
+    def training_step(self, batch) -> torch.Tensor:
         x_true, x, observed_mask, artificial_mask = batch
         observed_mask = observed_mask.float()
         artificial_mask = artificial_mask.float()
 
         # The generator input mask is the observed entries MINUS the artificially
         # hidden ones. From the generator's perspective, artificial_mask positions
-        # are "missing" — it must impute them, and we have clean labels for them.
+        # are "missing", thus it must impute them.
         train_mask = observed_mask * (1 - artificial_mask)  # 1 = give to generator
 
         hint = generate_hint(train_mask.detach().cpu().numpy(), self.training_cfg.hint_rate)
         hint = torch.tensor(hint, dtype=torch.float32, device=x.device)
-
+        
         batch = {
             "x": x,
             "x_true": x_true,
@@ -147,45 +134,30 @@ class Gain(pl.LightningModule):
 
         generator_optimizer, discriminator_optimizer = self.optimizers()
 
-        # -- Generator forward pass --
-        # Zero out artificially hidden positions so generator can't cheat
-        x_masked = batch["train_mask"] * batch["x"]  # zero at artificial + originally missing positions
+        x_hat = self.generator(x=x, mask=batch["train_mask"])
 
-        x_hat = self.generator(x=x_masked, mask=batch["train_mask"])
-
-        # Combine: keep real observed values (excluding hidden), fill rest with x_hat
+        # Discriminator
         x_imputed = batch["train_mask"] * batch["x"] + (1 - batch["train_mask"]) * x_hat
-
-        # -- Discriminator step --
-        # Discriminator tries to distinguish truly observed from generated entries.
-        # We detach x_imputed so discriminator gradients don't flow into generator.
         mask_hat = self.discriminator(x_imputed=x_imputed.detach(), hint=batch["hint"])
-        discriminator_loss = discriminator_mask_loss(
-            mask=batch["train_mask"], mask_hat=mask_hat, hint=batch["hint"]
-        )
+        discriminator_loss = discriminator_mask_loss(mask=batch["train_mask"], mask_hat=mask_hat, hint=batch["hint"])
         discriminator_optimizer.zero_grad()
         self.manual_backward(discriminator_loss)
         discriminator_optimizer.step()
 
-        # -- Generator step --
+        # Generator
         # Reconstruction loss: ONLY on artificially hidden positions where we
-        # have clean ground-truth labels. This is the key fix — training on
-        # observed positions gives a trivial signal (generator can just copy input).
+        # have clean ground-truth labels. Training on observed positions 
+        # gives a trivial signal (generator can just copy input).
         rmse = reconstruction_loss(
             x=batch["x_true"], x_hat=x_hat, mask=batch["artificial_mask"]
         )
-
-        # Re-run discriminator (with gradients) for adversarial loss
         mask_hat = self.discriminator(x_imputed=x_imputed, hint=batch["hint"])
-        adversarial_loss = generator_mask_loss(
-            mask=batch["train_mask"], mask_hat=mask_hat, hint=batch["hint"]
-        )
-
+        adversarial_loss = generator_mask_loss(mask=batch["train_mask"], mask_hat=mask_hat, hint=batch["hint"])
         total_loss = rmse + self.training_cfg.alpha * adversarial_loss
         generator_optimizer.zero_grad()
         self.manual_backward(total_loss)
         generator_optimizer.step()
-
+        
         logger.debug(
             f"\n RMSE: {rmse}"
             f"\n Adversarial loss: {adversarial_loss}"
@@ -202,71 +174,61 @@ class Gain(pl.LightningModule):
         for scheduler in self.lr_schedulers():
             scheduler.step()
 
-    # ------------------------------------------------------------------
-    # Validation
-    # ------------------------------------------------------------------
-
     def validation_step(self, batch) -> None:
         x_true, x, observed_mask, artificial_mask = batch
         observed_mask = observed_mask.float()
         artificial_mask = artificial_mask.float()
-
+        
         # During validation we additionally hide 10% of observed entries
-        # on top of the existing artificial_mask, to get an imputation signal.
+        # on top of the existing artificial_mask, to get an imputation signal
+        # for early stopping.
         # This mirrors the training setup: the generator sees train_mask,
         # and we evaluate reconstruction on the hidden subset.
         observed_bool = observed_mask.bool()
         extra_mask = torch.zeros_like(observed_mask)
         extra_mask[observed_bool] = (
-            torch.rand(observed_bool.sum(), device=observed_mask.device) > 0.9
+            torch.rand(observed_bool.sum(), device=x.device) > 0.9
         ).float()
 
-        # Combined evaluation mask: all artificially hidden positions
+        # Combined all artificially hidden positions
         eval_mask = (artificial_mask + extra_mask).clamp(max=1.0)
-
-        # What the generator sees
-        val_mask = observed_mask * (1 - eval_mask)
-
+        val_mask = observed_mask * (1 - eval_mask) # generator sees these entries
+        
         hint = generate_hint(val_mask.detach().cpu().numpy(), self.training_cfg.hint_rate)
         hint = torch.tensor(hint, dtype=torch.float32, device=x.device)
 
         x_hat = self.generator(x=x, mask=val_mask)
-
-        # Imputation RMSE: only on positions we deliberately hid (clean labels)
-        imputation_rmse = reconstruction_loss(x=x_true, x_hat=x_hat, mask=eval_mask)
-
+        imputation_rmse = reconstruction_loss(x=x_true, x_hat=x_hat, mask=artificial_mask) # only in artificial hidden entries
+        
         x_imputed = val_mask * x + (1 - val_mask) * x_hat
         mask_hat = self.discriminator(x_imputed=x_imputed, hint=hint)
+        discriminator_loss = discriminator_mask_loss(mask=val_mask, mask_hat=mask_hat, hint=hint)
 
-        discriminator_loss = discriminator_mask_loss(
-            mask=val_mask, mask_hat=mask_hat, hint=hint
-        )
-        adversarial_loss = generator_mask_loss(
-            mask=val_mask, mask_hat=mask_hat, hint=hint
-        )
         rmse = reconstruction_loss(x=x_true, x_hat=x_hat, mask=eval_mask)
+        adversarial_loss = generator_mask_loss(mask=val_mask, mask_hat=mask_hat, hint=hint)
         total_loss = rmse + self.training_cfg.alpha * adversarial_loss
 
+        missing_mask = ~observed_bool
         logger.debug(
             f"\n Val imputation RMSE: {imputation_rmse}"
-            f"\n Observed entries — predicted mean: {x_hat[observed_bool].mean().item():.4f}"
-            f"\n Observed entries — true mean: {x_true[observed_bool].mean().item():.4f}"
+            f"\n Observed entries mean"
+            f"\n    X predicted: {x_hat[observed_bool].mean().item()}"
+            f"\n    X true: {x_true[observed_bool].mean().item()}"
+            f"\n Missing entries mean"
+            f"\n    X predicted: {x_hat[missing_mask].mean().item()}"
+            f"\n    X true: {x_true[missing_mask].mean().item()}"
         )
 
-        self.log("val/total_loss", total_loss, prog_bar=True)
+        self.log("val/total_loss", total_loss)
         self.log("val/rmse", rmse)
-        self.log("val/imputation_rmse", imputation_rmse, prog_bar=True)
+        self.log("val/imputation_rmse", imputation_rmse)
         self.log("val/adversarial_loss", adversarial_loss)
         self.log("val/discriminator_loss", discriminator_loss)
-
-    # ------------------------------------------------------------------
-    # Fit
-    # ------------------------------------------------------------------
 
     def fit(
         self,
         train_loader: DataLoader,
-        val_loader: DataLoader | None = None,
+        val_loader: DataLoader | None=None,
     ) -> None:
         logger.info("Started training...")
         early_stopping = EarlyStopping(
@@ -294,49 +256,45 @@ class Gain(pl.LightningModule):
         if early_stopping.stopping_reason_message:
             logger.info(f"Details: {early_stopping.stopping_reason_message}")
 
-    # ------------------------------------------------------------------
-    # Inference
-    # ------------------------------------------------------------------
 
     @torch.no_grad()
-    def predict(self, loader: DataLoader) -> torch.Tensor:
-        """
-        Returns raw generator output x_hat for every entry.
-        The caller is responsible for combining with observed values via:
-            x_imputed = observed_mask * x + (1 - observed_mask) * x_hat
-        """
+    def predict(
+        self,
+        loader: DataLoader,
+    ) -> torch.Tensor:
         self.eval()
         all_x_hat: list[torch.Tensor] = []
-
+        
         for batch in loader:
-            x, observed_mask = batch
-            observed_mask = observed_mask.float()
-            hint = generate_hint(observed_mask.detach().cpu().numpy(), self.training_cfg.hint_rate)
+            x, mask = batch
+            mask = mask.float()
+            hint = generate_hint(mask.detach().cpu().numpy(), self.training_cfg.hint_rate)
             hint = torch.tensor(hint, dtype=torch.float32, device=x.device)
             self.to(x.device)
-            x_hat = self.generator(x=x, mask=observed_mask)
+            batch = {"x": x, "observed_mask": mask, "hint": hint}
+            out = self.forward(batch)
+            x_hat = out["x_hat"]
             all_x_hat.append(x_hat)
 
         return torch.cat(all_x_hat)
 
     @torch.no_grad()
-    def impute(self, loader: DataLoader) -> torch.Tensor:
-        """
-        Returns the fully imputed matrix:
-            observed entries  → original values kept
-            missing entries   → generator predictions
-        """
+    def impute(
+        self,
+        loader: DataLoader,
+    ) -> torch.Tensor:
         self.eval()
         all_x_imputed: list[torch.Tensor] = []
-
+        
         for batch in loader:
-            x, observed_mask = batch
-            observed_mask = observed_mask.float()
-            hint = generate_hint(observed_mask.detach().cpu().numpy(), self.training_cfg.hint_rate)
+            x, mask = batch
+            mask = mask.float()
+            hint = generate_hint(mask.detach().cpu().numpy(), self.training_cfg.hint_rate)
             hint = torch.tensor(hint, dtype=torch.float32, device=x.device)
             self.to(x.device)
-            x_hat = self.generator(x=x, mask=observed_mask)
-            x_imputed = observed_mask * x + (1 - observed_mask) * x_hat
+            batch = {"x": x, "observed_mask": mask, "hint": hint}
+            out = self.forward(batch)
+            x_imputed = mask * x + (1 - mask) * out["x_hat"]
             all_x_imputed.append(x_imputed)
 
         return torch.cat(all_x_imputed)
