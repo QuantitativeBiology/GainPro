@@ -58,25 +58,27 @@ class AutoEncoder(pl.LightningModule):
         self,
         batch,
     ) -> torch.Tensor:
-        x_true, x, mask = batch
+        x_true, x, observed_mask, artificial_mask = batch
         out = self(x)
         logger.debug(
-            f"\n Batch: {x}"
+            f"\n X missing: {x}"
             f"\n X true: {x_true}"
+            f"\n Observed mask: {observed_mask}"
+            f"\n Artificial mask: {artificial_mask}"
             f"\n Out: {out}"
         )
-        loss = self.compute_loss(x=x_true, x_hat=out, mask=mask)
+        loss = self.compute_loss(x=x_true, x_hat=out, mask=artificial_mask)
         self.log("train/loss", loss, prog_bar=True, on_step=True, on_epoch=True)
         return loss
     
-    def validation_step(self, batch: dict, batch_idx: int):
-        x_true, x, mask = batch
+    def validation_step(self, batch: dict) -> None:
+        x_true, x, observed_mask, artificial_mask = batch
         out = self.forward(x)
-        loss = self.compute_loss(x=x_true, x_hat=out, mask=mask)
+        loss = self.compute_loss(x=x_true, x_hat=out, mask=artificial_mask)
         logger.debug(
             f"\n Validation loss: {loss}"
         )
-        self.log("val/loss", loss, prog_bar=True, sync_dist=True, on_step=True, on_epoch=True)
+        self.log("val/loss", loss, sync_dist=True, on_step=True, on_epoch=True)
     
     def configure_optimizers(self):
         """Set up Adam optimizers and StepLR schedulers."""
@@ -114,7 +116,6 @@ class AutoEncoder(pl.LightningModule):
         )
         trainer.fit(self, train_dataloaders=train_loader, val_dataloaders=val_loader)
 
-        # Check why training stopped
         if early_stopping.stopping_reason == EarlyStoppingReason.PATIENCE_EXHAUSTED:
             logger.info("Training stopped due to patience exhaustion")
         elif early_stopping.stopping_reason == EarlyStoppingReason.STOPPING_THRESHOLD:
@@ -141,14 +142,11 @@ class AutoEncoder(pl.LightningModule):
         - (torch.Tensor): Predicted values (model predictions).
         """
         self.eval()
-
-        all_x_pred: list[torch.Tensor] = []
-        
+        all_x_hat: list[torch.Tensor] = []
         for batch in loader:
-            x_pred = self.forward(batch)
-            all_x_pred.append(x_pred.cpu())
-
-        return torch.cat(all_x_pred)
+            x_hat = self.forward(batch)
+            all_x_hat.append(x_hat.cpu())
+        return torch.cat(all_x_hat)
     
     @torch.no_grad()
     def impute(
@@ -166,13 +164,10 @@ class AutoEncoder(pl.LightningModule):
         - (torch.Tensor): Imputed values (model predictions).
         """
         self.eval()
-
-        all_x_hat: list[torch.Tensor] = []
-        
+        all_x_imputed: list[torch.Tensor] = []
         for batch, mask in loader:
             mask = mask.float()
             x_hat = self.forward(batch)
-            x_hat = (1 - mask) * batch + mask * x_hat
-            all_x_hat.append(x_hat.cpu())
-
-        return torch.cat(all_x_hat)
+            x_imputed = mask * batch + (1 - mask) * x_hat
+            all_x_imputed.append(x_imputed.cpu())
+        return torch.cat(all_x_imputed)

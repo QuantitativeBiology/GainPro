@@ -51,18 +51,20 @@ class AutoEncoderImputer(Imputer):
         x_train: torch.Tensor,
         x_true: torch.Tensor,
         mask_train: torch.Tensor,
+        artificial_mask_train: torch.Tensor,
         experiment_writer: ExperimentWriter,
         x_val: Optional[torch.Tensor],
         x_true_val: Optional[torch.Tensor],
         mask_val: Optional[torch.Tensor],
+        artificial_mask_val: Optional[torch.Tensor],
     ) -> None:
         _ = experiment_writer
-        dataset = TensorDataset(x_true, x_train, mask_train)
+        dataset = TensorDataset(x_true, x_train, mask_train, artificial_mask_train)
         train_loader = DataLoader(dataset, batch_size=self.training_cfg.batch_size, shuffle=True)
 
         val_loader = None
         if x_val is not None:
-            val_dataset = TensorDataset(x_true_val, x_val, mask_val)
+            val_dataset = TensorDataset(x_true_val, x_val, mask_val, artificial_mask_val)
             val_loader = DataLoader(val_dataset, batch_size=self.training_cfg.batch_size, shuffle=False)
 
         self.ae.fit(train_loader=train_loader, val_loader=val_loader)
@@ -70,9 +72,19 @@ class AutoEncoderImputer(Imputer):
     def predict(
         self,
         x_missing: torch.Tensor,
+        observed_mask: Optional[torch.Tensor],
+    ) -> torch.Tensor:
+        test_dataset = TensorDataset(x_missing, observed_mask)
+        test_loader = DataLoader(test_dataset, batch_size=self.training_cfg.batch_size, shuffle=False)
+        x_pred = self.ae.predict(test_loader)
+        return x_pred
+
+    def impute(
+        self,
+        x_missing: torch.Tensor,
         mask: Optional[torch.Tensor],
     ) -> torch.Tensor:
-        _ = mask
-        test_loader = DataLoader(x_missing, batch_size=self.training_cfg.batch_size, shuffle=False)
-        x_pred = self.ae.predict(test_loader)
+        test_dataset = TensorDataset(x_missing, mask)
+        test_loader = DataLoader(test_dataset, batch_size=self.training_cfg.batch_size, shuffle=False)
+        x_pred = self.ae.impute(test_loader)
         return x_pred
