@@ -46,7 +46,8 @@ class MissForestRImputer():
         cls,
         cfg: MissForestConfig,
         data: Data,
-    ):
+    ) -> "MissForestRImputer":
+        _ = data
         return cls(
             cfg=MissForestConfig.model_validate(load_yaml(cfg.model_cfg_path)),
         )
@@ -56,13 +57,15 @@ class MissForestRImputer():
         x_train: torch.tensor,
         x_true: torch.Tensor,
         mask_train: torch.Tensor,
+        artificial_mask_train: torch.Tensor,
         experiment_writer: ExperimentWriter,
         x_val: Optional[torch.Tensor],
         x_true_val: Optional[torch.Tensor],
         mask_val: Optional[torch.Tensor],
+        artificial_mask_val: Optional[torch.Tensor],
     ) -> None:
-        _, _ = x_true, mask_train  # MissForest operates on the full matrix, thus mask is not required
-        _, _, _ = x_val, x_true_val, mask_val
+        _, _, _ = x_true, mask_train, artificial_mask_train  # MissForest operates on the full matrix, thus mask is not required
+        _, _, _, _ = x_val, x_true_val, mask_val, artificial_mask_val
         _ = experiment_writer
         x_train = x_train.detach().cpu().numpy()
         self.missforest = MissForest(
@@ -73,7 +76,7 @@ class MissForestRImputer():
         )
         self.missforest.fit(x_train)
 
-    def predict(
+    def impute(
         self,
         x_missing: torch.Tensor,
         mask: Optional[torch.Tensor],
