@@ -85,8 +85,8 @@ class GainImputer(Imputer):
     ) -> torch.Tensor:
         test_dataset = TensorDataset(x_missing, mask)
         test_loader = DataLoader(test_dataset, batch_size=self.training_cfg.batch_size, shuffle=False)
-        x_pred = self.gain.impute(test_loader)
-        return x_pred
+        x_imputed = self.gain.impute(test_loader)
+        return x_imputed
     
     def predict(
         self,
