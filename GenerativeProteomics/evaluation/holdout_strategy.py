@@ -106,7 +106,7 @@ class HoldoutStrategy(EvaluationStrategy):
         logging.info(f"RMSE: {test_rmse}")
         # Sanity check on training data
         logger.debug(
-            f"\n RMSE on training data: {rmse(x_true, x_pred, mask_train)}"
+            f"\n RMSE on training data: {rmse(x_true, x_pred, mask_train.detach().cpu().numpy())}"
             f"\n X: {x_true}"
             f"\n X hat: {x_pred}"
             f"\n Mask: {mask_train}"
