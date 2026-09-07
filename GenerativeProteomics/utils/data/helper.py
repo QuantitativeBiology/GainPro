@@ -266,7 +266,7 @@ def _induce_mcar(
 
     chosen = rng.choice(len(eligible_positions), size=n_to_mask, replace=False)
     rows, cols = eligible_positions[chosen, 0], eligible_positions[chosen, 1]
-    df.values[rows, cols] = np.nan
+    df.iloc[rows, cols] = np.nan
     return df
 
 def _induce_mnar(
