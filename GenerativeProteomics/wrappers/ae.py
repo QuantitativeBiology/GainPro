@@ -57,8 +57,10 @@ class AutoEncoderImputer(Imputer):
         x_true_val: Optional[torch.Tensor],
         mask_val: Optional[torch.Tensor],
         artificial_mask_val: Optional[torch.Tensor],
+        tissue: Optional[torch.Tensor],
     ) -> None:
         _ = experiment_writer
+        _ = tissue
         dataset = TensorDataset(x_true, x_train, mask_train, artificial_mask_train)
         train_loader = DataLoader(dataset, batch_size=self.training_cfg.batch_size, shuffle=True)
 
@@ -73,7 +75,9 @@ class AutoEncoderImputer(Imputer):
         self,
         x_missing: torch.Tensor,
         observed_mask: Optional[torch.Tensor],
+        tissue: Optional[torch.Tensor],
     ) -> torch.Tensor:
+        _ = tissue
         test_dataset = TensorDataset(x_missing, observed_mask)
         test_loader = DataLoader(test_dataset, batch_size=self.training_cfg.batch_size, shuffle=False)
         x_pred = self.ae.predict(test_loader)
@@ -83,7 +87,9 @@ class AutoEncoderImputer(Imputer):
         self,
         x_missing: torch.Tensor,
         mask: Optional[torch.Tensor],
+        tissue: Optional[torch.Tensor],
     ) -> torch.Tensor:
+        _ = tissue
         test_dataset = TensorDataset(x_missing, mask)
         test_loader = DataLoader(test_dataset, batch_size=self.training_cfg.batch_size, shuffle=False)
         x_pred = self.ae.impute(test_loader)

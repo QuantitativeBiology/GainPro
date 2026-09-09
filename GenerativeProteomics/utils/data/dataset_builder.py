@@ -25,6 +25,7 @@ logger = logging.getLogger(__name__)
 MODEL_NORMALIZER_DEFAULTS = {
     "missforest": {"normalizer": "none"},
     "global_mean": {"normalizer": "none"},
+    "tissue_mean": {"normalizer": "none"},
     "gain": {"normalizer": "minmax"},
     "autoencoder": {"normalizer": "standard"},
 }
@@ -173,7 +174,7 @@ class DatasetBuilder:
             f"\n Dataset shape: {self.reference.shape}"
             f"\n Original missing rate: {self.original_missingness:.2%}"
             f"\n Current missing rate: {self.current_missingness:.2%}"
-            f"\n Target missing rate: {self.miss_rate}"
+            f"\n Target missing rate: {self.miss_rate:.2%}"
             f"\n Fill strategy: {fill_strategy}"
         )
 

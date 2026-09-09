@@ -67,18 +67,22 @@ class GlobalMeanImputer(Imputer):
         x_true_val: Optional[torch.Tensor],
         mask_val: Optional[torch.Tensor],
         artificial_mask_val: Optional[torch.Tensor],
+        tissue: Optional[torch.Tensor],
     ) -> None:
         _, _, _ = x_true, mask_train, artificial_mask_train
         _, _, _, _ = x_val, x_true_val, mask_val, artificial_mask_val
         _ = experiment_writer
+        _ = tissue
         self._compute_protein_means(values=x_train.detach().cpu().numpy())
 
     def predict(
         self,
         x_missing: torch.Tensor,
         observed_mask: Optional[torch.Tensor],
+        tissue: Optional[torch.Tensor],
     ) -> torch.Tensor:
         _ = observed_mask
+        _ = tissue
         input = np.full_like(x_missing.detach().cpu().numpy(), fill_value=np.nan)
         x_hat = self._impute_protein_means(values=input)
         return torch.from_numpy(x_hat).to(device=x_missing.device)
@@ -87,7 +91,9 @@ class GlobalMeanImputer(Imputer):
         self,
         x_missing: torch.Tensor,
         mask: Optional[torch.Tensor],
+        tissue: Optional[torch.Tensor],
     ) -> torch.Tensor:
         _ = mask
+        _ = tissue
         x_hat = self._impute_protein_means(values=x_missing.detach().cpu().numpy())
         return torch.from_numpy(x_hat).to(device=x_missing.device)

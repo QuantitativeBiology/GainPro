@@ -50,6 +50,7 @@ class HoldoutStrategy(EvaluationStrategy):
         x_true = np.nan_to_num(data.reference.detach().cpu().numpy(), nan=0)
         x_true_tensor = torch.tensor(x_true, device=data.device, dtype=torch.float32)
         x_missing = data.missing.detach()
+        tissue = data.tissue.detach() if data.tissue is not None else None
 
         imputer = imputer_factory()
 
@@ -83,10 +84,12 @@ class HoldoutStrategy(EvaluationStrategy):
             mask_val=mask_train[val_idx],
             artificial_mask_val= data.artificial_missing_mask[val_idx],
             experiment_writer=experiment_writer,
+            tissue=tissue,
         )
         x_pred = imputer.impute(
             x_missing=x_missing,
             mask=mask_train,
+            tissue=tissue,
         )
         experiment_writer.metadata_writer.set_end_time(datetime.now())
         x_pred = x_pred.detach().cpu().numpy()

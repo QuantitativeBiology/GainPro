@@ -2,8 +2,8 @@ n_runs: 1
 initial_seed: 42
 
 validation: 
-  - name: "holdout"
-    target_missing: [0.20]
+  name: "holdout"
+  target_missing: [0.11]
 
 models:
   - name: tissue_mean

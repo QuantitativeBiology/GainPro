@@ -7,7 +7,7 @@ from utils.configs.model_config import (
     GainConfig, 
     AutoEncoderConfig, 
     MissForestConfig,
-    GlobalMeanConfig,
+    MeanConfig,
 )
 from utils.configs.training_config import GainTrainingConfig, AutoEncoderTrainingConfig
 
@@ -24,7 +24,10 @@ MODEL_REGISTRY = {
         "model_config": MissForestConfig,
     },
     "global_mean": {
-        "model_config": GlobalMeanConfig,
+        "model_config": MeanConfig,
+    },
+    "tissue_mean": {
+        "model_config": MeanConfig,
     },
 }
 

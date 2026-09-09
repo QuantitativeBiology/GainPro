@@ -63,10 +63,12 @@ class MissForestRImputer():
         x_true_val: Optional[torch.Tensor],
         mask_val: Optional[torch.Tensor],
         artificial_mask_val: Optional[torch.Tensor],
+        tissue: Optional[torch.Tensor],
     ) -> None:
         _, _, _ = x_true, mask_train, artificial_mask_train  # MissForest operates on the full matrix, thus mask is not required
         _, _, _, _ = x_val, x_true_val, mask_val, artificial_mask_val
         _ = experiment_writer
+        _ = tissue
         x_train = x_train.detach().cpu().numpy()
         self.missforest = MissForest(
             n_estimators=self.n_tree,
@@ -80,8 +82,10 @@ class MissForestRImputer():
         self,
         x_missing: torch.Tensor,
         mask: Optional[torch.Tensor],
+        tissue: Optional[torch.Tensor],
     ) -> torch.Tensor:
         _ = mask  # MissForest operates on the full matrix, thus mask is not required
+        _ = tissue
         x_missing = x_missing.detach().cpu().numpy()
         x_pred = self.missforest.transform(x_missing)
         return torch.tensor(x_pred, device=x_missing.device)

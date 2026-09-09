@@ -12,8 +12,8 @@ class GainConfig(BaseModel):
 
 class MissForestConfig(BaseModel):
     name: str
-    n_tree: int = Field(default=1)
-    max_iter: int = Field(default=1)
+    n_tree: int = Field(default=100)
+    max_iter: int = Field(default=10)
 
 class AutoEncoderConfig(BaseModel):
     name: str
@@ -21,5 +21,6 @@ class AutoEncoderConfig(BaseModel):
     latent_dim: int = Field(default=256)
     fill_strategy: FillStrategy = Field(default="zero")
 
-class GlobalMeanConfig(BaseModel):
+class MeanConfig(BaseModel):
     name: str
+    by_tissue: bool = Field(default=False)

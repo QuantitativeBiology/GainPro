@@ -1,8 +1,7 @@
 from wrappers.imputer import Imputer
 from wrappers.gain import GainImputer
 from wrappers.ae import AutoEncoderImputer
-from wrappers.global_mean import GlobalMeanImputer
-from wrappers.tissue_mean import TissueMeanImputer
+from wrappers.mean import MeanImputer
 from wrappers.missforest import MissForestRImputer
 from utils.configs.model_config import FillStrategy
 
@@ -14,8 +13,8 @@ class ImputationManager:
     REGISTRY: dict[str, type] = {
         "gain": GainImputer,
         "autoencoder": AutoEncoderImputer,
-        "global_mean": GlobalMeanImputer,
-        "tissue_mean": TissueMeanImputer,
+        "global_mean": MeanImputer,
+        "tissue_mean": MeanImputer,
         "missForest": MissForestRImputer,
     }
 

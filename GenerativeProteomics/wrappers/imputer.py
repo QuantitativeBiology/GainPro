@@ -25,6 +25,7 @@ class Imputer(ABC):
         x_val: Optional[torch.Tensor],
         x_true_val: Optional[torch.Tensor],
         mask_val: Optional[torch.Tensor],
+        tissue: Optional[torch.Tensor],
     ) -> None:
         pass
 
@@ -33,6 +34,7 @@ class Imputer(ABC):
         self,
         x_missing: torch.Tensor,
         observed_mask: Optional[torch.Tensor],
+        tissue: Optional[torch.Tensor],
     ) -> torch.Tensor: 
         """Generate predictions for all entries in the input tensor.
 
@@ -54,6 +56,7 @@ class Imputer(ABC):
         self,
         x_missing: torch.Tensor,
         mask: Optional[torch.Tensor],
+        tissue: Optional[torch.Tensor],
     ) -> torch.Tensor:
         """Impute missing entries in the input tensor.
 
