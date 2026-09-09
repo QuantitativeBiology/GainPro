@@ -86,7 +86,11 @@ class AutoEncoder(pl.LightningModule):
             list(self.encoder.parameters())
             + list(self.decoder.parameters())
         )
-        opt = torch.optim.Adam(params=params, lr=self.training_cfg.lr)
+        opt = torch.optim.Adam(
+            params=params, 
+            lr=self.training_cfg.optimizer.lr, 
+            weight_decay=self.training_cfg.optimizer.weight_decay
+        )
 
         scheduler = torch.optim.lr_scheduler.StepLR(
             opt,
