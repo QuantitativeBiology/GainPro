@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 
-from models.AutoEncoder.layers import MLP
+from GenerativeProteomics.models.AutoEncoder.layers import MLP
 
 class Decoder(nn.Module):
     def __init__(

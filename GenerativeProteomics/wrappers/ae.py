@@ -2,14 +2,14 @@ import torch
 from typing import Optional
 from torch.utils.data import TensorDataset, DataLoader
 
-from utils.helper import load_yaml
-from utils.data.dataset import Data
-from wrappers.imputer import Imputer
-from models.AutoEncoder.autoencoder import AutoEncoder
-from utils.configs.model_entry_config import ModelEntryConfig
-from utils.configs.model_config import AutoEncoderConfig, FillStrategy
-from utils.configs.training_config import AutoEncoderTrainingConfig
-from utils.writers.experiment_writer import ExperimentWriter
+from GenerativeProteomics.utils.helper import load_yaml
+from GenerativeProteomics.utils.data.dataset import Data
+from GenerativeProteomics.wrappers.imputer import Imputer
+from GenerativeProteomics.models.AutoEncoder.autoencoder import AutoEncoder
+from GenerativeProteomics.utils.configs.model_entry_config import ModelEntryConfig
+from GenerativeProteomics.utils.configs.model_config import AutoEncoderConfig, FillStrategy
+from GenerativeProteomics.utils.configs.training_config import AutoEncoderTrainingConfig
+from GenerativeProteomics.utils.writers.experiment_writer import ExperimentWriter
 
 class AutoEncoderImputer(Imputer):
     def __init__(

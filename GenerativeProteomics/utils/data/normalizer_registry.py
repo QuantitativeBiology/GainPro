@@ -1,5 +1,5 @@
 import torch.nn as nn
-from utils.data.normalizer import (
+from GenerativeProteomics.utils.data.normalizer import (
     Normalizer, 
     MinMaxNormalizer, 
     StandardNormalizer

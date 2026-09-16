@@ -3,9 +3,9 @@ import numpy as np
 from datetime import datetime
 from sklearn.model_selection import GroupKFold
 
-from utils.data.dataset import Data
-from utils.writers.experiment_writer import ExperimentWriter
-from evaluation.evaluation_strategy import EvaluationStrategy
+from GenerativeProteomics.utils.data.dataset import Data
+from GenerativeProteomics.utils.writers.experiment_writer import ExperimentWriter
+from GenerativeProteomics.evaluation.evaluation_strategy import EvaluationStrategy
 
 
 class GroupKFoldStrategy(EvaluationStrategy):

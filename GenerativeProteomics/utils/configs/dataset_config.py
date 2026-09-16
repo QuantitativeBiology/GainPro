@@ -2,7 +2,7 @@ from pathlib import Path
 from typing import Literal, Optional
 from pydantic import BaseModel, Field
 
-from utils.data.helper import MissingMechanism
+from GenerativeProteomics.utils.data.helper import MissingMechanism
 
 class DatasetConfig(BaseModel):
     name: str

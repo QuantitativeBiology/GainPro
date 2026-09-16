@@ -2,18 +2,18 @@ import logging
 from pathlib import Path
 from datetime import datetime
 
-from imputation_manager import ImputationManager
-from evaluation.evaluator import Evaluator
+from GenerativeProteomics.imputation_manager import ImputationManager
+from GenerativeProteomics.evaluation.evaluator import Evaluator
 
-from utils.paths import get_project_root
-from utils.data.dataset_builder import DatasetBuilder
-from utils.configs.dataset_config import DatasetConfig
-from utils.configs.benchmark_config import BenchmarkConfig
-from utils.configs.model_entry_config import ModelEntryConfig
-from utils.writers.dataset_writer import DatasetWriter
-from utils.writers.experiment_writer import ExperimentWriter
-from utils.helper import load_benchmark, load_yaml, make_run_dir
-from utils.writers.config_writer import ConfigWriter
+from GenerativeProteomics.utils.paths import get_project_root
+from GenerativeProteomics.utils.data.dataset_builder import DatasetBuilder
+from GenerativeProteomics.utils.configs.dataset_config import DatasetConfig
+from GenerativeProteomics.utils.configs.benchmark_config import BenchmarkConfig
+from GenerativeProteomics.utils.configs.model_entry_config import ModelEntryConfig
+from GenerativeProteomics.utils.writers.dataset_writer import DatasetWriter
+from GenerativeProteomics.utils.writers.experiment_writer import ExperimentWriter
+from GenerativeProteomics.utils.helper import load_benchmark, load_yaml, make_run_dir
+from GenerativeProteomics.utils.writers.config_writer import ConfigWriter
 
 logger = logging.getLogger(__name__)
 

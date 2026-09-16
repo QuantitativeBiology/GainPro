@@ -1,9 +1,9 @@
-from utils.data.dataset import Data
-from utils.writers.experiment_writer import ExperimentWriter
+from GenerativeProteomics.utils.data.dataset import Data
+from GenerativeProteomics.utils.writers.experiment_writer import ExperimentWriter
 
-from evaluation.holdout_strategy import HoldoutStrategy
-from evaluation.groupkfold_strategy import GroupKFoldStrategy
-from evaluation.evaluation_strategy import EvaluationStrategy
+from GenerativeProteomics.evaluation.holdout_strategy import HoldoutStrategy
+from GenerativeProteomics.evaluation.groupkfold_strategy import GroupKFoldStrategy
+from GenerativeProteomics.evaluation.evaluation_strategy import EvaluationStrategy
 
 class Evaluator:
     STRATEGIES = {

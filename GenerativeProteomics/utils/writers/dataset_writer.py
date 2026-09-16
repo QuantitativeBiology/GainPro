@@ -1,7 +1,7 @@
 import pandas as pd
 from pathlib import Path
 
-from utils.data.dataset import Data
+from GenerativeProteomics.utils.data.dataset import Data
 
 class DatasetWriter:
     def _save_df(

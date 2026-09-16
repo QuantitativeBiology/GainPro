@@ -1,8 +1,8 @@
 from pathlib import Path
 
-from utils.writers.split_writer import SplitWriter
-from utils.writers.results_writer import ResultWriter
-from utils.writers.metadata_writer import MetadataWriter
+from GenerativeProteomics.utils.writers.split_writer import SplitWriter
+from GenerativeProteomics.utils.writers.results_writer import ResultWriter
+from GenerativeProteomics.utils.writers.metadata_writer import MetadataWriter
 
 class ExperimentWriter:
     def __init__(

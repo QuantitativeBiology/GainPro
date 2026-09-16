@@ -5,10 +5,10 @@ from typing import Optional
 
 from missingpy import MissForest
 
-from utils.helper import load_yaml
-from utils.data.dataset import Data
-from utils.writers.experiment_writer import ExperimentWriter
-from utils.configs.model_config import MissForestConfig
+from GenerativeProteomics.utils.helper import load_yaml
+from GenerativeProteomics.utils.data.dataset import Data
+from GenerativeProteomics.utils.writers.experiment_writer import ExperimentWriter
+from GenerativeProteomics.utils.configs.model_config import MissForestConfig
 
 logger = logging.getLogger(__name__)
 

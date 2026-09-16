@@ -1,9 +1,9 @@
-from wrappers.imputer import Imputer
-from wrappers.gain import GainImputer
-from wrappers.ae import AutoEncoderImputer
-from wrappers.mean import MeanImputer
-from wrappers.missforest import MissForestRImputer
-from utils.configs.model_config import FillStrategy
+from GenerativeProteomics.wrappers.imputer import Imputer
+from GenerativeProteomics.wrappers.gain import GainImputer
+from GenerativeProteomics.wrappers.ae import AutoEncoderImputer
+from GenerativeProteomics.wrappers.mean import MeanImputer
+from GenerativeProteomics.wrappers.missforest import MissForestRImputer
+from GenerativeProteomics.utils.configs.model_config import FillStrategy
 
 
 class ImputationManager:

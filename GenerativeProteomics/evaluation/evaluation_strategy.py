@@ -1,8 +1,8 @@
 import numpy as np
 from abc import ABC, abstractmethod
 
-from utils.data.dataset import Data
-from utils.writers.experiment_writer import ExperimentWriter
+from GenerativeProteomics.utils.data.dataset import Data
+from GenerativeProteomics.utils.writers.experiment_writer import ExperimentWriter
 
 class EvaluationStrategy(ABC):
     @abstractmethod

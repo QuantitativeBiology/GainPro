@@ -1,11 +1,11 @@
 from typing import List
 from pydantic import BaseModel
 
-from utils.configs.validation_config import (
+from .validation_config import (
     HoldoutValidationConfig,
     GroupKFoldValidationConfig
 )
-from utils.configs.model_entry_config import ModelEntryConfig
+from GenerativeProteomics.utils.configs.model_entry_config import ModelEntryConfig
 
 class BenchmarkConfig(BaseModel):
     n_runs: int

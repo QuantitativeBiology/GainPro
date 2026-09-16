@@ -3,11 +3,11 @@ import torch
 import numpy as np
 from typing import Optional, Union
 
-from wrappers.imputer import Imputer
-from utils.helper import load_yaml
-from utils.data.dataset import Data
-from utils.configs.model_config import MeanConfig
-from utils.writers.experiment_writer import ExperimentWriter
+from GenerativeProteomics.wrappers.imputer import Imputer
+from GenerativeProteomics.utils.helper import load_yaml
+from GenerativeProteomics.utils.data.dataset import Data
+from GenerativeProteomics.utils.configs.model_config import MeanConfig
+from GenerativeProteomics.utils.writers.experiment_writer import ExperimentWriter
 
 logger = logging.getLogger(__name__)
 

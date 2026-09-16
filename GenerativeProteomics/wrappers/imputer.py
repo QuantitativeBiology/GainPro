@@ -2,8 +2,8 @@ import torch
 from typing import Optional
 from abc import ABC, abstractmethod
 
-from utils.data.dataset import Data
-from utils.writers.experiment_writer import ExperimentWriter
+from ..utils.data.dataset import Data
+from ..utils.writers.experiment_writer import ExperimentWriter
 
 class Imputer(ABC):
     @abstractmethod

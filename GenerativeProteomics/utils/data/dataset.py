@@ -2,7 +2,7 @@ import torch
 import numpy as np
 import pandas as pd
 
-from utils.data.normalizer import Normalizer
+from GenerativeProteomics.utils.data.normalizer import Normalizer
 
 class Data:
     def __init__(

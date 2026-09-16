@@ -5,11 +5,11 @@ import numpy as np
 import pandas as pd
 from pathlib import Path
 
-from utils.data.dataset import Data
-from utils.configs.dataset_config import DatasetConfig
-from utils.configs.model_config import FillStrategy
-from utils.data.normalizer_registry import build_normalizer
-from utils.data.helper import (
+from GenerativeProteomics.utils.data.dataset import Data
+from GenerativeProteomics.utils.configs.dataset_config import DatasetConfig
+from GenerativeProteomics.utils.configs.model_config import FillStrategy
+from GenerativeProteomics.utils.data.normalizer_registry import build_normalizer
+from GenerativeProteomics.utils.data.helper import (
     load_csv,
     load_tsv,
     load_tsv_with_condition,

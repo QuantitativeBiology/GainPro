@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from pipelines.benchmark_pipeline import run_benchmark
+from ..pipelines.benchmark_pipeline import run_benchmark
 
 def add_parser(subparsers):
     parser = subparsers.add_parser(

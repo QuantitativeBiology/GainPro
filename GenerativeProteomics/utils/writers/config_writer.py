@@ -1,7 +1,8 @@
 import yaml
 import shutil
 from pathlib import Path
-from utils.paths import get_project_root
+
+from GenerativeProteomics.utils.paths import get_project_root
 
 class ConfigWriter:
     @staticmethod

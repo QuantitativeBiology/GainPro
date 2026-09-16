@@ -2,14 +2,14 @@ import yaml
 from pathlib import Path
 from datetime import datetime
 
-from utils.configs.benchmark_config import BenchmarkConfig
-from utils.configs.model_config import (
+from GenerativeProteomics.utils.configs.benchmark_config import BenchmarkConfig
+from GenerativeProteomics.utils.configs.model_config import (
     GainConfig, 
     AutoEncoderConfig, 
     MissForestConfig,
     MeanConfig,
 )
-from utils.configs.training_config import GainTrainingConfig, AutoEncoderTrainingConfig
+from GenerativeProteomics.utils.configs.training_config import GainTrainingConfig, AutoEncoderTrainingConfig
 
 MODEL_REGISTRY = {
     "gain": {

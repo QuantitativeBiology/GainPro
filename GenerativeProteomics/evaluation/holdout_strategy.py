@@ -4,13 +4,13 @@ import numpy as np
 from datetime import datetime
 from sklearn.model_selection import train_test_split
 
-from utils.data.dataset import Data
-from utils.data.normalizer import MinMaxNormalizer
-from utils.metrics.metrics import rmse
-from wrappers.gain import GainImputer
-from wrappers.ae import AutoEncoderImputer
-from utils.writers.experiment_writer import ExperimentWriter
-from evaluation.evaluation_strategy import EvaluationStrategy
+from GenerativeProteomics.utils.data.dataset import Data
+from GenerativeProteomics.utils.data.normalizer import MinMaxNormalizer
+from GenerativeProteomics.utils.metrics.metrics import rmse
+from GenerativeProteomics.wrappers.gain import GainImputer
+from GenerativeProteomics.wrappers.ae import AutoEncoderImputer
+from GenerativeProteomics.utils.writers.experiment_writer import ExperimentWriter
+from GenerativeProteomics.evaluation.evaluation_strategy import EvaluationStrategy
 
 logger = logging.getLogger(__name__)
 

@@ -1,7 +1,7 @@
 import logging
 import argparse
 
-from commands import benchmark
+from .commands import benchmark
 
 def main() -> None:
     parser = argparse.ArgumentParser(

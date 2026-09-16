@@ -7,11 +7,11 @@ from pytorch_lightning.callbacks.early_stopping import (
 )
 from torch.utils.data import DataLoader
 
-from models.AutoEncoder.encoder import Encoder
-from models.AutoEncoder.decoder import Decoder
-from models.AutoEncoder.losses import reconstruction_loss
-from utils.configs.model_config import AutoEncoderConfig
-from utils.configs.training_config import AutoEncoderTrainingConfig
+from GenerativeProteomics.models.AutoEncoder.encoder import Encoder
+from GenerativeProteomics.models.AutoEncoder.decoder import Decoder
+from GenerativeProteomics.models.AutoEncoder.losses import reconstruction_loss
+from GenerativeProteomics.utils.configs.model_config import AutoEncoderConfig
+from GenerativeProteomics.utils.configs.training_config import AutoEncoderTrainingConfig
 
 logger = logging.getLogger(__name__)
 

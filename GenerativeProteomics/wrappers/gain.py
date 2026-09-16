@@ -1,21 +1,20 @@
 import torch
 import torch.nn as nn
 from torch.utils.data import TensorDataset, DataLoader
-import numpy as np
 from typing import Optional
 
-from utils.helper import load_yaml
-from utils.data.dataset import Data
-from utils.data.normalizer_registry import get_output_activation
+from GenerativeProteomics.utils.helper import load_yaml
+from GenerativeProteomics.utils.data.dataset import Data
+from GenerativeProteomics.utils.data.normalizer_registry import get_output_activation
 
-from wrappers.imputer import Imputer
+from GenerativeProteomics.wrappers.imputer import Imputer
 
-from models.Gain.gain import Gain
+from GenerativeProteomics.models.Gain.gain import Gain
 
-from utils.configs.model_config import GainConfig, FillStrategy
-from utils.configs.model_entry_config import ModelEntryConfig
-from utils.configs.training_config import GainTrainingConfig
-from utils.writers.experiment_writer import ExperimentWriter
+from GenerativeProteomics.utils.configs.model_config import GainConfig, FillStrategy
+from GenerativeProteomics.utils.configs.model_entry_config import ModelEntryConfig
+from GenerativeProteomics.utils.configs.training_config import GainTrainingConfig
+from GenerativeProteomics.utils.writers.experiment_writer import ExperimentWriter
 
 class GainImputer(Imputer):
     def __init__(

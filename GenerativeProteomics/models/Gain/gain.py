@@ -8,12 +8,12 @@ from pytorch_lightning.callbacks.early_stopping import (
     EarlyStoppingReason
 )
 
-from utils.data.helper import generate_hint
-from utils.configs.model_config import GainConfig
-from utils.configs.training_config import GainTrainingConfig
-from models.Gain.generator import Generator
-from models.Gain.discriminator import Discriminator
-from models.Gain.losses import (
+from GenerativeProteomics.utils.data.helper import generate_hint
+from GenerativeProteomics.utils.configs.model_config import GainConfig
+from GenerativeProteomics.utils.configs.training_config import GainTrainingConfig
+from .generator import Generator
+from .discriminator import Discriminator
+from .losses import (
     reconstruction_loss,
     discriminator_mask_loss,
     generator_mask_loss
